@@ -145,17 +145,31 @@ function extraireEncaissements(realtimeData: any): Encaissements | null {
   if (!realtimeData || typeof realtimeData !== 'object') return null;
   const sessions = Object.values(realtimeData) as any[];
   const session = sessions.find((s) => s && s.is_live) || sessions[0];
-  if (!session || !Array.isArray(session.total_payments)) return null;
+  if (!session || !Array.isArray(session.total_payments) || !Array.isArray(session.tickets)) return null;
 
-  let total = 0;
   let totalEspeces = 0;
   let totalCarte = 0;
   for (const p of session.total_payments) {
     const montant = (typeof p.amount === 'number' ? p.amount : 0) / 100;
-    total += montant;
     if (p.type === 'Espèces') totalEspeces += montant;
     else totalCarte += montant;
   }
+
+  // "Total" = toutes les commandes (payées ou non), comme le champ "Total" de
+  // la page Jalia "Temps réel" - inclut donc les additions pas encore réglées,
+  // contrairement à total_payments qui ne compte que l'argent déjà encaissé.
+  let total = 0;
+  for (const ticket of session.tickets) {
+    if (ticket.cancelled) continue;
+    for (const item of (ticket.items || [])) {
+      if (item.cancelled) continue;
+      const prixUnitaire = (item.price && typeof item.price.amount === 'number') ? item.price.amount : 0;
+      const quantite = typeof item.quantity === 'number' ? item.quantity : 1;
+      total += prixUnitaire * quantite;
+    }
+  }
+  total = total / 100;
+
   return {
     total: Math.round(total * 100) / 100,
     totalEspeces: Math.round(totalEspeces * 100) / 100,
