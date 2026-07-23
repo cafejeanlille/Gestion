@@ -5538,15 +5538,19 @@ function renderDashboard(){
   </div>`;
   majRecapChargesFixes();
 
-  // Suivi du mois — objectif charges fixes (alimenté par les comptages de caisse)
-  // CA cumulé = espèces indiquées sur le rapport + CB contact et sans contact
-  // (télécollecte réelle) — pas les espèces seules, sinon la carte (souvent
-  // la majorité du CA) n'était pas comptée du tout.
+  // Suivi du mois — objectif charges fixes. CA cumulé = espèces + carte du
+  // mois, synchronisés automatiquement depuis Jalia (caisses clôturées +
+  // caisse du jour en cours). Si la synchro Jalia n'a pas encore tourné pour
+  // ce mois, on retombe sur les saisies manuelles de Comptage de caisse.
   const comptagesDuMois = (DATA.comptages||[]).filter(c=>(c.date||'').slice(0,7)===moisActuel);
-  const especesDuMois = Math.round(comptagesDuMois.reduce((s,c)=>s+(c.caIndique||0),0)*100)/100;
-  const carteContactDuMois = Math.round(comptagesDuMois.reduce((s,c)=>s+(c.carteContact||0),0)*100)/100;
-  const carteSansContactDuMois = Math.round(comptagesDuMois.reduce((s,c)=>s+(c.carteSansContact||0),0)*100)/100;
-  const cumulCA = Math.round((especesDuMois + carteContactDuMois + carteSansContactDuMois) * 100) / 100;
+  const jaliaCumulMois = (DATA.jaliaCumulMois && DATA.jaliaCumulMois.mois === moisActuel) ? DATA.jaliaCumulMois : null;
+  const especesDuMois = jaliaCumulMois
+    ? jaliaCumulMois.especes
+    : Math.round(comptagesDuMois.reduce((s,c)=>s+(c.caIndique||0),0)*100)/100;
+  const carteDuMois = jaliaCumulMois
+    ? jaliaCumulMois.carte
+    : Math.round(comptagesDuMois.reduce((s,c)=>s+((c.carteContact||0)+(c.carteSansContact||0)),0)*100)/100;
+  const cumulCA = Math.round((especesDuMois + carteDuMois) * 100) / 100;
   // Objectif du mois = charges fixes + charges variables (achats du mois),
   // pour que le CA cumulé doive couvrir l'ensemble des charges, pas
   // seulement les charges fixes.
@@ -5559,7 +5563,8 @@ function renderDashboard(){
   if(cumulCAEl) cumulCAEl.textContent = formatEuro(cumulCA);
   const cumulCADetailEl = document.getElementById('cumulCADetail');
   if(cumulCADetailEl){
-    cumulCADetailEl.textContent = `dont ${formatEuro(especesDuMois)} espèces, ${formatEuro(carteContactDuMois)} CB contact, ${formatEuro(carteSansContactDuMois)} CB sans contact`;
+    const source = jaliaCumulMois ? '' : ' (saisie manuelle — en attente de synchro Jalia)';
+    cumulCADetailEl.textContent = `dont ${formatEuro(especesDuMois)} espèces, ${formatEuro(carteDuMois)} carte${source}`;
   }
 
   const resteEl = document.getElementById('resteAtteindre');

@@ -1,22 +1,22 @@
-// Fonction planifiée : lit le "CA du jour (encaissé)" depuis la base Firebase
-// Realtime Database que le backoffice Jalia utilise pour son tableau "Temps réel",
-// et le pousse dans la ligne sync_store('cafe-jean') lue par l'application
-// (DATA.jaliaSync).
+// Fonction planifiée : lit le "CA du jour (encaissé)" et le "CA cumulé du mois"
+// (espèces + carte) depuis le backoffice Jalia, et les pousse dans la ligne
+// sync_store('cafe-jean') lue par l'application (DATA.jaliaSync /
+// DATA.jaliaCumulMois).
 //
 // Comment ça marche :
-//   1. On se connecte au backoffice Jalia (session cookie classique) pour
-//      récupérer la page "Temps réel" de l'établissement, qui contient un
-//      identifiant Firebase dédié à l'établissement (embarqué par Jalia
-//      lui-même dans le HTML : window.firebaseSettings).
-//   2. On s'authentifie à ce compte Firebase via l'API REST Identity Toolkit.
-//   3. On lit /users/{userId} pour obtenir le "realtimeID" de l'établissement,
-//      puis /realtimes/{realtimeID} qui contient la session de caisse en cours,
-//      avec son tableau total_payments (un total par mode de paiement, en
-//      centimes).
+//   1. On se connecte au backoffice Jalia (session cookie classique).
+//   2. Pour "aujourd'hui" (caisse en cours, pas encore clôturée) : la page
+//      "Temps réel" embarque un identifiant Firebase dédié à l'établissement
+//      (window.firebaseSettings) qui donne accès en direct à la session de
+//      caisse (Realtime Database) avec le détail des paiements.
+//   3. Pour le reste du mois (caisses déjà clôturées) : on lit la liste des
+//      caisses (/tills) et le détail de chaque caisse (/dashboard/till/{id})
+//      qui contient les "Modes de paiements" (Espèces / Carte de crédit). Ces
+//      jours sont mis en cache (DATA.jaliaTillsCache) pour ne pas les
+//      re-télécharger à chaque exécution planifiée.
 //
 // Secrets requis (Project Settings > Edge Functions > Secrets) :
-//   JALIA_EMAIL, JALIA_PASSWORD : identifiants du compte Jalia du café (pour
-//                                 l'étape 1 uniquement).
+//   JALIA_EMAIL, JALIA_PASSWORD : identifiants du compte Jalia du café.
 //   CRON_SECRET                : jeton partagé vérifié via l'en-tête x-cron-secret,
 //                                pour que seul notre job planifié puisse déclencher
 //                                cette fonction (verify_jwt est désactivé ici).
@@ -51,7 +51,7 @@ function cookieHeader(jar: Map<string, string>): string {
   return Array.from(jar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
 }
 
-async function loginJaliaEtRecupererPageLive(email: string, password: string): Promise<string> {
+async function loginJalia(email: string, password: string): Promise<Map<string, string>> {
   const jar = new Map<string, string>();
 
   const loginPageRes = await fetch(`${JALIA_BASE}/fr/session/index`);
@@ -84,14 +84,18 @@ async function loginJaliaEtRecupererPageLive(email: string, password: string): P
     throw new Error('Echec de connexion Jalia (statut ' + loginRes.status + ') - identifiants invalides ou site change.');
   }
 
-  const pageRes = await fetch(`${JALIA_BASE}/fr/dashboard/establishment/${ESTABLISHMENT_ID}/live`, {
+  return jar;
+}
+
+async function fetchAuthed(jar: Map<string, string>, path: string): Promise<string> {
+  const res = await fetch(`${JALIA_BASE}${path}`, {
     headers: { Cookie: cookieHeader(jar) },
     redirect: 'manual',
   });
-  if (pageRes.status >= 300 && pageRes.status < 400) {
-    throw new Error('Session Jalia non authentifiee (redirige vers la connexion, statut ' + pageRes.status + ').');
+  if (res.status >= 300 && res.status < 400) {
+    throw new Error('Session Jalia non authentifiee (redirige vers la connexion) sur ' + path + '.');
   }
-  return await pageRes.text();
+  return await res.text();
 }
 
 interface FirebaseSettings {
@@ -177,6 +181,66 @@ function extraireEncaissements(realtimeData: any): Encaissements | null {
   };
 }
 
+interface TillListEntry {
+  tillId: string;
+  date: string; // YYYY-MM-DD (date de début de service)
+}
+
+const MOIS_FR: Record<string, string> = {
+  'janv': '01', 'févr': '02', 'fevr': '02', 'mars': '03', 'avr': '04', 'mai': '05', 'juin': '06',
+  'juil': '07', 'août': '08', 'aout': '08', 'sept': '09', 'oct': '10', 'nov': '11', 'déc': '12', 'dec': '12',
+};
+
+function parseDateTillFr(texte: string): string | null {
+  // ex: "Mercredi 22 Juil 2026 de 13:37 à 01:18"
+  const m = texte.match(/(\d{1,2})\s+([A-Za-zÀ-ÿ]{3,4})\.?\s+(\d{4})/);
+  if (!m) return null;
+  const jour = m[1].padStart(2, '0');
+  const moisTxt = m[2].toLowerCase().replace('.', '');
+  const mois = MOIS_FR[moisTxt];
+  if (!mois) return null;
+  return `${m[3]}-${mois}-${jour}`;
+}
+
+function listerTills(html: string): TillListEntry[] {
+  const entries: TillListEntry[] = [];
+  const re = /href="\/fr\/dashboard\/till\/(\d+)"[^>]*>([^<]*)</g;
+  const parDate = new Map<string, string>();
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const tillId = m[1];
+    const texte = decodeHtmlEntities(m[2]);
+    const date = parseDateTillFr(texte);
+    if (date && !parDate.has(tillId)) parDate.set(tillId, date);
+  }
+  for (const [tillId, date] of parDate) entries.push({ tillId, date });
+  return entries;
+}
+
+interface DetailTill {
+  especes: number;
+  carte: number;
+}
+
+function extraireMontantSpans(html: string, labelRegex: string): number | null {
+  // Les montants sont eclates sur plusieurs <span> (ex: <span>52</span><span>,</span><span>50</span>)
+  const re = new RegExp(labelRegex + '[\\s\\S]{0,300}?<span[^>]*>(\\d+)</span>\\s*<span[^>]*>,</span>\\s*<span[^>]*>(\\d+)</span>', 'i');
+  const m = html.match(re);
+  if (!m) return null;
+  const n = parseFloat(`${m[1]}.${m[2]}`);
+  return isNaN(n) ? null : n;
+}
+
+function extraireDetailTill(html: string): DetailTill | null {
+  const especes = extraireMontantSpans(html, 'Esp[eè]ces');
+  const carte = extraireMontantSpans(html, 'Carte de cr[eé]dit');
+  if (especes === null && carte === null) return null;
+  return {
+    especes: especes ?? 0,
+    carte: carte ?? 0,
+  };
+}
+
 Deno.serve(async (req: Request) => {
   const cronSecret = Deno.env.get('CRON_SECRET');
   if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
@@ -194,8 +258,17 @@ Deno.serve(async (req: Request) => {
     }
 
     const debug = new URL(req.url).searchParams.get('debug') === '1';
+    const debugTills = new URL(req.url).searchParams.get('debug') === 'tills';
+    const debugTillId = new URL(req.url).searchParams.get('tillId');
 
-    const pageHtml = await loginJaliaEtRecupererPageLive(email, password);
+    const jar = await loginJalia(email, password);
+
+    if (debugTillId) {
+      const detailHtml = await fetchAuthed(jar, `/fr/dashboard/till/${debugTillId}`);
+      return new Response(JSON.stringify({ detail: extraireDetailTill(detailHtml) }), { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    const pageHtml = await fetchAuthed(jar, `/fr/dashboard/establishment/${ESTABLISHMENT_ID}/live`);
     const fbSettings = extraireFirebaseSettings(pageHtml);
     const { idToken, localId } = await authFirebase(fbSettings);
 
@@ -218,6 +291,16 @@ Deno.serve(async (req: Request) => {
 
     const nowIso = new Date().toISOString();
     const dateDuJour = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const moisCourant = dateDuJour.slice(0, 7);
+
+    const tillsListHtml = await fetchAuthed(jar, `/fr/dashboard/establishment/${ESTABLISHMENT_ID}/tills`);
+    const tillsDuMois = listerTills(tillsListHtml).filter((t) => t.date.slice(0, 7) === moisCourant && t.date !== dateDuJour);
+
+    if (debugTills) {
+      return new Response(JSON.stringify({ tillsListHtmlLength: tillsListHtml.length, tillsDuMois }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const getRes = await fetch(`${supabaseUrl}/rest/v1/sync_store?id=eq.${SYNC_ROW_ID}&select=data`, {
       headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
@@ -226,11 +309,41 @@ Deno.serve(async (req: Request) => {
     const rows = await getRes.json();
     const currentData = (Array.isArray(rows) && rows[0] && rows[0].data) ? rows[0].data : {};
 
+    const cache: Record<string, DetailTill & { tillId: string }> = currentData.jaliaTillsCache || {};
+    for (const till of tillsDuMois) {
+      if (cache[till.date] && cache[till.date].tillId === till.tillId) continue;
+      const detailHtml = await fetchAuthed(jar, `/fr/dashboard/till/${till.tillId}`);
+      const detail = extraireDetailTill(detailHtml);
+      if (detail) cache[till.date] = { ...detail, tillId: till.tillId };
+    }
+    // Nettoyage : ne garder que le mois courant et le mois precedent (evite de grossir indefiniment)
+    const moisPrecedent = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit' }).format(new Date(new Date().setMonth(new Date().getMonth() - 1))).slice(0, 7);
+    for (const date of Object.keys(cache)) {
+      if (!date.startsWith(moisCourant) && !date.startsWith(moisPrecedent)) delete cache[date];
+    }
+    currentData.jaliaTillsCache = cache;
+
+    let especesMois = encaissements.totalEspeces;
+    let carteMois = encaissements.totalCarte;
+    for (const [date, detail] of Object.entries(cache)) {
+      if (date.startsWith(moisCourant)) {
+        especesMois += detail.especes;
+        carteMois += detail.carte;
+      }
+    }
+
     currentData.jaliaSync = {
       date: dateDuJour,
       totalEspeces: encaissements.totalEspeces,
       totalCarte: encaissements.totalCarte,
       dernierCA: { Total: encaissements.total },
+      derniereSyncISO: nowIso,
+    };
+
+    currentData.jaliaCumulMois = {
+      mois: moisCourant,
+      especes: Math.round(especesMois * 100) / 100,
+      carte: Math.round(carteMois * 100) / 100,
       derniereSyncISO: nowIso,
     };
 
@@ -246,7 +359,7 @@ Deno.serve(async (req: Request) => {
     });
     if (!putRes.ok) throw new Error('Ecriture sync_store echouee (' + putRes.status + ').');
 
-    return new Response(JSON.stringify({ ok: true, encaissements, syncedAt: nowIso }), {
+    return new Response(JSON.stringify({ ok: true, encaissements, cumulMois: currentData.jaliaCumulMois, syncedAt: nowIso }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err) {
