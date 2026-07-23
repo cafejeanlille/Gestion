@@ -695,77 +695,36 @@
     border:1px solid var(--line);
     border-radius:16px;
   }
-  .seau-shell{
+  .slip-shell{
     position:relative;
-    width:76px;
-    padding-top:16px;
+    width:100px;
     flex-shrink:0;
   }
-  .seau-anse{
-    position:absolute;
-    top:0;
-    left:50%;
-    transform:translateX(-50%);
-    width:44px;
-    height:20px;
-    border:3px solid var(--ink-soft);
-    border-bottom:none;
-    border-radius:22px 22px 0 0;
-  }
-  .seau{
-    position:relative;
-    width:76px;
-    height:66px;
-    border:3px solid var(--ink-soft);
-    border-top:none;
-    border-radius:6px 6px 22px 22px;
-    overflow:hidden;
-    background:var(--paper-2);
-    box-shadow:0 6px 14px rgba(20,20,20,0.12);
-  }
-  .seau-eau{
-    position:absolute;
-    bottom:0;
-    left:0;
+  .slip-svg{
     width:100%;
-    height:0%;
-    background:linear-gradient(180deg, #6fae8c 0%, var(--emerald) 55%, var(--emerald-dark) 100%);
-    transition:height 0.8s ease;
+    height:auto;
+    display:block;
+    overflow:visible;
+    filter:drop-shadow(0 6px 10px rgba(20,20,20,0.12));
   }
-  .seau-eau.plein{
-    background:linear-gradient(180deg, #d9bb4e 0%, var(--gold) 55%, #8a6f1a 100%);
+  .slip-outline{
+    fill:var(--paper-2);
+    stroke:var(--ink-soft);
+    stroke-width:3;
   }
-  .seau-vague{
-    position:absolute;
-    top:-6px;
-    left:-25%;
-    width:150%;
-    height:12px;
-    background:
-      radial-gradient(circle at 10px 6px, rgba(255,255,255,0.6) 5px, transparent 6px) 0 0/20px 12px repeat-x,
-      radial-gradient(circle at 20px 2px, rgba(255,255,255,0.4) 6px, transparent 7px) 0 0/20px 12px repeat-x;
-    animation:seauVague 2.4s linear infinite;
+  .slip-fill{
+    fill:url(#slipFillGradient);
+    transition:transform 0.8s ease, fill 0.3s ease;
   }
-  .seau-reflet{
-    position:absolute;
-    top:6px;
-    left:8px;
-    width:10px;
-    height:calc(100% - 18px);
-    border-radius:6px;
-    background:linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0));
-    pointer-events:none;
+  .slip-fill.plein{
+    fill:url(#slipFillGradientPlein);
   }
   .seau-goutte{
     position:absolute;
-    top:-14px;
-    right:-4px;
+    top:-10px;
+    right:2px;
     font-size:16px;
     animation:seauFlotte 2.6s ease-in-out infinite;
-  }
-  @keyframes seauVague{
-    from{ transform:translateX(0); }
-    to{ transform:translateX(20px); }
   }
   @keyframes seauFlotte{
     0%,100%{ transform:translateY(0); }
@@ -1059,17 +1018,31 @@
     </div>
 
     <div class="seau-wrap">
-      <div class="seau-shell">
-        <div class="seau-anse"></div>
-        <div class="seau">
-          <div class="seau-eau" id="seauEauNiveau">
-            <div class="seau-vague"></div>
-          </div>
-          <div class="seau-reflet"></div>
-        </div>
+      <div class="slip-shell">
+        <svg class="slip-svg" viewBox="0 0 100 70">
+          <defs>
+            <clipPath id="slipClip">
+              <path d="M6,4 H94 V22 C94,40 84,40 80,26 C76,44 68,52 50,52 C32,52 24,44 20,26 C16,40 6,40 6,22 Z"/>
+            </clipPath>
+            <linearGradient id="slipFillGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#6fae8c"/>
+              <stop offset="55%" stop-color="#2F6F4E"/>
+              <stop offset="100%" stop-color="#20503A"/>
+            </linearGradient>
+            <linearGradient id="slipFillGradientPlein" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#d9bb4e"/>
+              <stop offset="55%" stop-color="#C9A227"/>
+              <stop offset="100%" stop-color="#8a6f1a"/>
+            </linearGradient>
+          </defs>
+          <path class="slip-outline" d="M6,4 H94 V22 C94,40 84,40 80,26 C76,44 68,52 50,52 C32,52 24,44 20,26 C16,40 6,40 6,22 Z"/>
+          <g clip-path="url(#slipClip)">
+            <rect id="seauEauNiveau" class="slip-fill" x="0" y="0" width="100" height="70" transform="translate(0,70)"/>
+          </g>
+        </svg>
         <div class="seau-goutte">💧</div>
       </div>
-      <button class="btn ghost" onclick="viderSeauEau()">Vider le seau</button>
+      <button class="btn ghost" onclick="viderSeauEau()">Vider le slip</button>
     </div>
   </section>
 
@@ -4452,7 +4425,8 @@ function renderSeauEau(){
   const ecoule = Date.now() - debut;
   const pct = Math.max(0, Math.min(100, (ecoule / SEAU_DUREE_MS) * 100));
 
-  niveauEl.style.height = pct + '%';
+  const decalage = Math.round((70 * (100 - pct)) / 100);
+  niveauEl.setAttribute('transform', 'translate(0,' + decalage + ')');
   niveauEl.classList.toggle('plein', pct >= 100);
 }
 
@@ -4460,7 +4434,7 @@ function viderSeauEau(){
   DATA.seauEau = { dernierVidageISO: new Date().toISOString() };
   sauvegarder();
   renderSeauEau();
-  afficherToast('Seau vidé.');
+  afficherToast('Slip vidé.');
 }
 
 
