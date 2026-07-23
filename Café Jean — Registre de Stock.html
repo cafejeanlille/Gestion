@@ -2924,7 +2924,17 @@
       </div>
       <p class="note" id="cpt-ca-source">Aucune clôture trouvée pour le 13/07/2026 — saisissez le montant espèces, carte et le fonds de caisse manuellement.</p>
 
-      <div class="denom-columns">
+      <label style="display:flex;align-items:center;gap:8px;margin:14px 0;font-weight:600;cursor:pointer;">
+        <input type="checkbox" id="cpt-mode-simple" onchange="basculerModeComptageSimple()">
+        Je ne compte pas le détail des billets/pièces — saisir juste le total compté
+      </label>
+
+      <div id="cpt-total-manuel-wrap" style="display:none;margin-bottom:20px;">
+        <label for="cpt-total-manuel">Total compté en caisse (€)</label>
+        <input type="number" id="cpt-total-manuel" min="0" step="0.01" class="qty-input" placeholder="0.00" oninput="majComptageCalcul()">
+      </div>
+
+      <div class="denom-columns" id="cpt-detail-columns">
         <div>
           <h3 class="denom-title">Billets</h3>
           <div id="cpt-billets" data-built="1">
@@ -3027,7 +3037,7 @@
 
     </div>
 
-    <div class="card">
+    <div class="card" id="card-suggestion-fond">
       <h2>Suggestion de fond de caisse</h2>
       <div id="suggestion-fond-wrap"><p class="note">Comptez vos billets et pièces ci-dessus pour voir la suggestion de composition.</p></div>
     </div>
@@ -3753,6 +3763,35 @@ function calculerTotalDenominations(){
   return { total: totalCents/100, detail };
 }
 
+function comptageModeSimple(){
+  const el = document.getElementById('cpt-mode-simple');
+  return !!(el && el.checked);
+}
+
+function obtenirTotalEtDetailComptage(){
+  if(comptageModeSimple()){
+    const total = parseFloat(document.getElementById('cpt-total-manuel').value) || 0;
+    return { total, detail: {} };
+  }
+  return calculerTotalDenominations();
+}
+
+function basculerModeComptageSimple(){
+  const simple = comptageModeSimple();
+  const detailWrap = document.getElementById('cpt-detail-columns');
+  const manuelWrap = document.getElementById('cpt-total-manuel-wrap');
+  const suggestionCard = document.getElementById('card-suggestion-fond');
+  if(detailWrap) detailWrap.style.display = simple ? 'none' : '';
+  if(manuelWrap) manuelWrap.style.display = simple ? '' : 'none';
+  if(suggestionCard) suggestionCard.style.display = simple ? 'none' : '';
+  if(simple) viderDenominations();
+  else{
+    const manuelEl = document.getElementById('cpt-total-manuel');
+    if(manuelEl) manuelEl.value = '';
+  }
+  majComptageCalcul();
+}
+
 function remplirDenominations(detail){
   DENOMINATIONS.forEach(d=>{
     const el = document.getElementById(denomInputId(d.valeur));
@@ -3782,7 +3821,15 @@ function chargerCaDuJourComptage(){
   const carteSansContactEl = document.getElementById('cpt-carte-sans-contact');
 
   if(comptageExistant){
-    remplirDenominations(comptageExistant.denominations);
+    const modeSimpleEl = document.getElementById('cpt-mode-simple');
+    if(modeSimpleEl) modeSimpleEl.checked = !!comptageExistant.modeSimple;
+    basculerModeComptageSimple();
+    if(comptageExistant.modeSimple){
+      const manuelEl = document.getElementById('cpt-total-manuel');
+      if(manuelEl) manuelEl.value = comptageExistant.totalCompte;
+    }else{
+      remplirDenominations(comptageExistant.denominations);
+    }
     if(fondEl) fondEl.value = comptageExistant.fondCaisse;
     if(caEl) caEl.value = comptageExistant.caIndique;
     if(carteRapportEl) carteRapportEl.value = comptageExistant.carteRapport != null ? comptageExistant.carteRapport : '';
@@ -3790,6 +3837,9 @@ function chargerCaDuJourComptage(){
     if(carteSansContactEl) carteSansContactEl.value = comptageExistant.carteSansContact != null ? comptageExistant.carteSansContact : '';
     if(sourceEl) sourceEl.textContent = `✏ Vous modifiez le comptage déjà enregistré pour le ${formatDateFr(date)}. Corrigez les valeurs puis cliquez sur « Enregistrer le comptage » pour le mettre à jour.`;
   }else{
+    const modeSimpleEl = document.getElementById('cpt-mode-simple');
+    if(modeSimpleEl) modeSimpleEl.checked = false;
+    basculerModeComptageSimple();
     viderDenominations();
     if(carteContactEl) carteContactEl.value = '';
     if(carteSansContactEl) carteSansContactEl.value = '';
@@ -3819,7 +3869,7 @@ function chargerCaDuJourComptage(){
 }
 
 function majComptageCalcul(){
-  const { total } = calculerTotalDenominations();
+  const { total } = obtenirTotalEtDetailComptage();
   const fond = parseFloat(document.getElementById('cpt-fond').value) || 0;
   const ca = parseFloat(document.getElementById('cpt-ca').value) || 0;
   const net = Math.round((total - fond) * 100) / 100;
@@ -3851,7 +3901,7 @@ function majComptageCalcul(){
     else if(ecartCarte < -0.004) carteEcartBox.classList.add('ecart-negatif');
   }
 
-  renderSuggestionFond();
+  if(!comptageModeSimple()) renderSuggestionFond();
 
   return { total, fond, ca, net, ecart, carteRapport, carteContact, carteSansContact, carteTotal, ecartCarte };
 }
@@ -4494,6 +4544,11 @@ function renderRecettesTab(){
 
 function reinitialiserFormComptage(){
   viderDenominations();
+  const modeSimpleEl = document.getElementById('cpt-mode-simple');
+  if(modeSimpleEl) modeSimpleEl.checked = false;
+  const manuelEl = document.getElementById('cpt-total-manuel');
+  if(manuelEl) manuelEl.value = '';
+  basculerModeComptageSimple();
   const carteContactEl = document.getElementById('cpt-carte-contact');
   const carteSansContactEl = document.getElementById('cpt-carte-sans-contact');
   if(carteContactEl) carteContactEl.value = '';
@@ -4513,18 +4568,19 @@ function chargerComptagePourEdition(id){
 
 function enregistrerComptage(){
   const date = document.getElementById('cpt-date').value || todayIso();
-  const { detail } = calculerTotalDenominations();
+  const modeSimple = comptageModeSimple();
+  const { detail } = obtenirTotalEtDetailComptage();
   const { total, fond, ca, net, ecart, carteRapport, carteContact, carteSansContact, carteTotal, ecartCarte } = majComptageCalcul();
 
   if(total === 0 && carteTotal === 0){
-    afficherToast('Saisissez au moins un billet/une pièce, ou un montant de télécollecte carte.');
+    afficherToast('Saisissez au moins un montant compté (détail ou total), ou un montant de télécollecte carte.');
     return;
   }
 
   const entree = {
     id: genererId(), date,
     fondCaisse: fond, denominations: detail, totalCompte: total, caIndique: ca, especesNettes: net, ecart,
-    carteRapport, carteContact, carteSansContact, carteTotal, ecartCarte
+    carteRapport, carteContact, carteSansContact, carteTotal, ecartCarte, modeSimple
   };
   const existant = DATA.comptages.find(c=>c.date===date);
   if(existant){
