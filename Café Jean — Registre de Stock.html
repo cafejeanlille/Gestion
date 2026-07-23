@@ -570,7 +570,7 @@
 
   .progress-wrap{
     position:relative;
-    padding-top:24px;
+    padding-top:46px;
   }
   .progress-track{
     width:100%;
@@ -632,10 +632,10 @@
     top:0;
     left:0%;
     transform:translateX(-50%);
-    font-size:22px;
+    font-size:40px;
     line-height:1;
     transition:left 0.5s ease;
-    pointer-events:none;
+    cursor:pointer;
     display:inline-block;
     animation:papillonBat 0.7s ease-in-out infinite;
     transform-origin:center;
@@ -1001,13 +1001,13 @@
         <div class="label">Reste à atteindre</div>
         <div class="value" id="resteAtteindre">Reste à atteindre : 4 469,26 €</div>
       </div>
-      <div class="stat-box">
+      <div class="stat-box" id="tropPercuBox" style="display:none;">
         <div class="label">Trop perçu espèce</div>
         <div class="value" id="tropPercuEspeceRecap">+1,10 €</div>
       </div>
     </div>
     <div class="progress-wrap">
-      <div class="progress-butterfly" id="progressButterfly" style="left: 65%;">🦋</div>
+      <div class="progress-butterfly" id="progressButterfly" style="left: 65%;" onclick="toggleTropPercu()" title="Cliquer pour voir le trop perçu espèce">🦋</div>
       <div class="progress-track"><div class="progress-fill" id="progressFill" style="width: 65%;"></div></div>
     </div>
 
@@ -5589,6 +5589,11 @@ function renderDashboard(){
   }
   renderSeauEau();
   renderAlertePlouvier();
+}
+
+function toggleTropPercu(){
+  const box = document.getElementById('tropPercuBox');
+  if(box) box.style.display = box.style.display === 'none' ? '' : 'none';
 }
 
 /* ============ PLANNING ============ */
