@@ -69,9 +69,31 @@ Contraintes techniques STRICTES pour visuelHtml :
   or ${PALETTE.gold}, fond sombre ${PALETTE.ink}, clair ${PALETTE.paper}. Tu peux ajuster les
   nuances mais reste dans cette famille chaleureuse rétro (sauf si une DA différente est
   fournie plus bas, auquel cas c'est elle qui prime).
-- Le nom "CAFÉ JEAN" doit apparaître quelque part, en texte stylisé (pas d'image de logo).
+- Le nom "CAFÉ JEAN" doit apparaître quelque part. Pour le vrai logo (dessin encré du café),
+  n'essaie JAMAIS de le recréer toi-même — INTERDIT de dessiner un logo avec des <svg>/<text>/
+  <path>, des lettres découpées, ou tout autre bricolage visuel pour imiter "CAFÉ JEAN" en
+  image. Deux options seulement : (a) le token exact et littéral {{LOGO_CAFE_JEAN}} seul à
+  l'intérieur d'une <div> de taille définie (ex: width:220px;height:110px;margin:0 auto), qui
+  sera automatiquement remplacé par la vraie image du logo, ou (b) simplement le texte "CAFÉ
+  JEAN" en typographie normale (une <div> avec du texte, sans fioriture graphique autour).
 - Le texte (titre, date/heure, détails) vient du prompt — mets les infos concrètes données
   (date, heure, prix...) si elles sont fournies, invente une formulation sobre sinon.
+
+Vocabulaire visuel vintage à ta disposition (pioche librement, sans obligation de tout
+utiliser) pour obtenir un rendu soigné, du niveau d'un carton d'invitation imprimé :
+- Kicker en haut : petite ligne majuscule très espacée encadrée de losanges/étoiles (ex:
+  "◆ WAZEMMES · LILLE ◆"), avec une accroche en italique doré juste en dessous (ex: "depuis
+  1923"), le tout flanqué de fines lignes horizontales de chaque côté.
+- Séparateurs en pointillés avec un petit cercle creux à chaque extrémité (border-top:1px
+  dashed + deux <div> ronds de ~14px aux deux bouts), pour scander les sections.
+- Labels techniques (DATE, HORAIRE, LIEU...) en majuscules, petite taille, letter-spacing
+  large (3-4px), couleur plus discrète que le contenu qu'ils annoncent.
+- Fleurons/laurier en SVG (traits fins, style gravure) pour encadrer un mot-clé ou séparer
+  des blocs, plutôt que des formes pleines.
+- Beaucoup d'espace négatif : ne remplis pas tout le cadre, un visuel épuré avec de l'air
+  autour du texte est plus élégant qu'un visuel dense.
+- Un petit pied de page discret en bas (compte Instagram, adresse) séparé du contenu principal
+  par une fine ligne, façon carton d'invitation.
 
 RÈGLE ANTI-CHEVAUCHEMENT (la faute la plus fréquente à éviter absolument) : ne JAMAIS
 positionner plusieurs blocs de texte avec des valeurs "top" en position:absolute devinées à
@@ -79,7 +101,11 @@ la main — sur du texte multi-lignes, la hauteur réelle rendue ne correspond j
 estimation et les blocs finissent chevauchés/illisibles. Structure donc TOUJOURS le HTML
 ainsi :
 1. D'abord, les éléments purement décoratifs (cadre, coins/fleurons, formes de fond, ruban
-   en arrière-plan) en position:absolute, avec z-index:0, SANS AUCUN TEXTE à l'intérieur.
+   en arrière-plan) en position:absolute, avec z-index:0, SANS AUCUN TEXTE à l'intérieur —
+   AUCUNE EXCEPTION : même un mot répété façon tampon (ex: "OFFICIEL"), une accroche courte
+   ou un simple label doit vivre DANS le conteneur flex du point 2, jamais dans un <div>
+   décoratif séparé en position:absolute. Dès qu'il y a une lettre, ce n'est plus de la pure
+   décoration, et sa position doit être gérée par le flux flex, pas devinée à la main.
 2. Ensuite, un unique conteneur de texte : position:absolute; inset:0 (ou top/left/right/
    bottom:0); z-index:1; display:flex; flex-direction:column; align-items:center;
    justify-content:center (ou space-evenly/space-between selon la quantité de contenu);
@@ -91,6 +117,13 @@ ainsi :
 - Formes décoratives en CSS pur (gradients, border-radius, clip-path, box-shadow) ou en SVG
   inline (<svg> avec <defs>/<radialGradient>/<linearGradient> autorisés, tout doit rester
   dans la <div> racine, toujours en arrière-plan derrière le conteneur de texte).
+- Les formes décoratives ne doivent JAMAIS traverser la zone centrale où vit le texte : reste
+  dans les marges/bordures/coins du cadre (par exemple les 15% extérieurs de chaque bord),
+  jamais vers le centre. Piège fréquent à éviter : un ruban/bande large tourné avec
+  transform:rotate() et positionné via top:50%/left:Xpx — la rotation pivote autour du centre
+  de l'élément et le fait presque toujours dériver au milieu du visuel, en plein sur le texte,
+  même si son z-index est censé être "derrière". Si tu veux un ruban vertical, colle-le
+  franchement sur le bord gauche ou droit (left:0 ou right:0), jamais vers le centre.
 - Tout le texte doit tenir dans le cadre, sans déborder (choisis des tailles de police
   raisonnables vu la quantité de texte et l'espace disponible ; réduis la taille plutôt que
   de risquer un débordement ou un chevauchement).
