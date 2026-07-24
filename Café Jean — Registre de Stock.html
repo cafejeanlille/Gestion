@@ -2856,15 +2856,22 @@
   <!-- TAB: RÉSEAUX SOCIAUX -->
   <section class="tab-panel" id="tab-social">
     <div class="card">
-      <h2>📸 Créateur de Story</h2>
-      <p class="note">Choisis une photo et un modèle, ajoute ton texte, puis télécharge l'image — prête à publier toi-même sur Instagram ou TikTok. Format Story (1080×1920), esthétique rétro Café Jean.</p>
+      <h2 id="social-visuel-titre">📸 Créateur de visuel</h2>
+      <p class="note">Choisis un format et un modèle, ajoute ta photo et ton texte (ou récupère-les depuis l'Assistant IA ci-dessous), puis télécharge l'image — prête à publier toi-même. Esthétique rétro Café Jean.</p>
 
       <div class="social-layout">
         <div class="social-canvas-wrap">
-          <canvas id="socialCanvas" width="1080" height="1920"></canvas>
+          <canvas id="socialCanvas" width="1080" height="1920" style="width:270px;height:480px;"></canvas>
         </div>
 
         <div class="social-controls">
+          <label style="display:block;">Format</label>
+          <div class="template-choix" id="social-format-choix">
+            <button type="button" class="active" onclick="choisirFormatSocial('story')">Story</button>
+            <button type="button" onclick="choisirFormatSocial('publication')">Publication</button>
+            <button type="button" onclick="choisirFormatSocial('affiche')">Affiche</button>
+          </div>
+
           <div class="form-grid">
             <div style="grid-column:1/-1;">
               <label for="social-photo">Photo</label>
@@ -4053,8 +4060,32 @@ function renderSuggestionFond(){
     ${alerte}`;
 }
 
-/* ============ RÉSEAUX SOCIAUX (générateur de Story, 100% local, sans IA) ============ */
-const socialState = { template: 'cadre', image: null };
+/* ============ RÉSEAUX SOCIAUX (générateur de visuel, 100% local, sans IA) ============ */
+const socialState = { template: 'cadre', image: null, format: 'story' };
+
+const FORMATS_SOCIAL = {
+  story: { w: 1080, h: 1920, label: 'Story' },
+  publication: { w: 1080, h: 1080, label: 'Publication' },
+  affiche: { w: 1080, h: 1350, label: 'Affiche' },
+};
+
+function choisirFormatSocial(nom){
+  const format = FORMATS_SOCIAL[nom];
+  if(!format) return;
+  socialState.format = nom;
+  const canvas = document.getElementById('socialCanvas');
+  if(canvas){
+    canvas.width = format.w;
+    canvas.height = format.h;
+    const largeurAffichee = 270;
+    canvas.style.width = largeurAffichee + 'px';
+    canvas.style.height = Math.round(largeurAffichee * format.h / format.w) + 'px';
+  }
+  document.querySelectorAll('#social-format-choix button').forEach(b=>{
+    b.classList.toggle('active', b.textContent === format.label);
+  });
+  genererStorySocial();
+}
 
 function chargerPhotoSocial(event){
   const file = event.target.files[0];
@@ -4263,13 +4294,36 @@ function afficherIdeesSocial(data){
     return;
   }
   window._socialIaCaptions = captions.map(c => (c.texte || '') + (hashtags ? '\n\n' + hashtags : ''));
-  resultatEl.innerHTML = captions.map((c, i) => `
+  window._socialIaVisuel = (data.visuel && data.visuel.titre) ? data.visuel : null;
+
+  const visuelHtml = window._socialIaVisuel ? `
+    <div class="recette-item" style="margin-bottom:14px; padding:14px 16px; border:1px solid var(--line); border-radius:6px; background:var(--paper-2);">
+      <div class="sub" style="margin-bottom:6px; font-weight:700;">🖼️ Pour un visuel (Story / Affiche / Publication)</div>
+      <div style="margin-bottom:4px;"><strong>${escapeHtml(window._socialIaVisuel.titre)}</strong></div>
+      <div style="margin-bottom:10px; color:var(--ink-soft);">${escapeHtml(window._socialIaVisuel.sousTitre || '')}</div>
+      <button class="btn ghost" onclick="utiliserVisuelIA()">Utiliser pour le visuel ↑</button>
+    </div>` : '';
+
+  resultatEl.innerHTML = visuelHtml + captions.map((c, i) => `
     <div class="recette-item" style="margin-bottom:10px; padding:14px 16px; border:1px solid var(--line); border-radius:6px;">
       <div class="sub" style="margin-bottom:6px; font-weight:700;">${escapeHtml(c.style || 'Proposition ' + (i+1))}</div>
       <div style="white-space:pre-wrap; margin-bottom:10px;">${escapeHtml(c.texte || '')}</div>
       <button class="btn ghost" onclick="copierTexteSocial(${i})">📋 Copier</button>
     </div>
   `).join('') + (hashtags ? `<p class="note"><strong>Hashtags suggérés :</strong> ${escapeHtml(hashtags)}</p>` : '');
+}
+
+function utiliserVisuelIA(){
+  const v = window._socialIaVisuel;
+  if(!v) return;
+  const titreEl = document.getElementById('social-titre');
+  const sousTitreEl = document.getElementById('social-sous-titre');
+  if(titreEl) titreEl.value = v.titre || '';
+  if(sousTitreEl) sousTitreEl.value = v.sousTitre || '';
+  genererStorySocial();
+  const visuelTitre = document.getElementById('social-visuel-titre');
+  if(visuelTitre) visuelTitre.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  afficherToast('Visuel mis à jour avec le titre proposé — choisissez le format et le modèle ci-dessus.');
 }
 
 function copierTexteSocial(index){

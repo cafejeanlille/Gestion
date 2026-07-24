@@ -39,8 +39,13 @@ c'est raté. Donc :
 - Chaque proposition doit sonner différente d'un vrai humain différent, pas trois variations
   du même ton IA.
 
+En plus des légendes, propose aussi un texte pour un visuel (story/affiche/publication) qui
+sera affiché en gros sur une image : un titre très court façon accroche (3 à 6 mots, pas une
+phrase complète, pas de point final) et un sous-texte factuel court (ex: date, heure, prix) —
+là aussi sans tournure marketing.
+
 Réponds UNIQUEMENT avec un JSON strict, sans texte autour, de cette forme exacte :
-{"captions":[{"style":"Version 1","texte":"..."},{"style":"Version 2","texte":"..."},{"style":"Version 3","texte":"..."}],"hashtags":["#..."]}
+{"captions":[{"style":"Version 1","texte":"..."},{"style":"Version 2","texte":"..."},{"style":"Version 3","texte":"..."}],"hashtags":["#..."],"visuel":{"titre":"...","sousTitre":"..."}}
 Le tableau hashtags peut être vide ([]) si ça ne sonne pas naturel d'en mettre.`;
 
 function jsonResponse(body: unknown, status = 200) {
