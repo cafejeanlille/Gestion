@@ -915,8 +915,9 @@
   }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -2857,52 +2858,30 @@
   <section class="tab-panel" id="tab-social">
     <div class="card">
       <h2 id="social-visuel-titre">📸 Créateur de visuel</h2>
-      <p class="note">Choisis un format et un modèle, ajoute ta photo et ton texte (ou récupère-les depuis l'Assistant IA ci-dessous), puis télécharge l'image — prête à publier toi-même. Esthétique rétro Café Jean.</p>
+      <p class="note">Choisissez un format, puis décrivez ce que vous voulez publier dans l'Assistant IA ci-dessous : l'IA dessine un visuel sur-mesure pour l'occasion (pas un gabarit générique), dans le style du Café Jean. Téléchargez ensuite l'image.</p>
+
+      <label style="display:block;">Format</label>
+      <div class="template-choix" id="poster-format-choix">
+        <button type="button" onclick="choisirFormatPoster('story')">Story</button>
+        <button type="button" class="active" onclick="choisirFormatPoster('publication')">Publication</button>
+        <button type="button" onclick="choisirFormatPoster('affiche')">Affiche</button>
+      </div>
 
       <div class="social-layout">
-        <div class="social-canvas-wrap">
-          <canvas id="socialCanvas" width="1080" height="1920" style="width:270px;height:480px;"></canvas>
+        <div class="social-canvas-wrap" id="poster-frame-wrap" style="width:270px;height:270px;overflow:hidden;">
+          <div id="posterFrame" style="width:1080px;height:1080px;transform:scale(0.25);transform-origin:top left;position:relative;background:var(--ink);overflow:hidden;">
+            <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--paper);font-family:'Playfair Display',serif;font-size:36px;text-align:center;padding:40px;box-sizing:border-box;opacity:0.55;">Décrivez votre publication dans l'Assistant IA ci-dessous pour générer le visuel</div>
+          </div>
         </div>
 
         <div class="social-controls">
-          <label style="display:block;">Format</label>
-          <div class="template-choix" id="social-format-choix">
-            <button type="button" class="active" onclick="choisirFormatSocial('story')">Story</button>
-            <button type="button" onclick="choisirFormatSocial('publication')">Publication</button>
-            <button type="button" onclick="choisirFormatSocial('affiche')">Affiche</button>
-          </div>
-
-          <div class="form-grid">
-            <div style="grid-column:1/-1;">
-              <label for="social-photo">Photo (usage unique)</label>
-              <input type="file" id="social-photo" accept="image/*" onchange="chargerPhotoSocial(event)">
-            </div>
-          </div>
-
-          <label style="margin-top:10px; display:block;">Bibliothèque de photos de l'établissement</label>
+          <label style="display:block;">Bibliothèque de photos de l'établissement</label>
           <div id="social-photos-galerie" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;"></div>
           <input type="file" id="social-photos-ajout" accept="image/*" multiple onchange="ajouterPhotosEtablissement(event)">
-
-          <label style="margin-top:14px; display:block;">Modèle</label>
-          <div class="template-choix" id="social-template-choix">
-            <button type="button" class="active" onclick="choisirTemplateSocial('cadre')">Cadre doré</button>
-            <button type="button" onclick="choisirTemplateSocial('bandeau')">Bandeau bas</button>
-            <button type="button" onclick="choisirTemplateSocial('citation')">Citation</button>
-          </div>
-
-          <div class="form-grid">
-            <div style="grid-column:1/-1;">
-              <label for="social-titre">Titre / accroche</label>
-              <input type="text" id="social-titre" placeholder="Ex : Nouveau à la carte" oninput="genererStorySocial()">
-            </div>
-            <div style="grid-column:1/-1;">
-              <label for="social-sous-titre">Sous-texte</label>
-              <input type="text" id="social-sous-titre" placeholder="Ex : Tous les jours dès 8h" oninput="genererStorySocial()">
-            </div>
-          </div>
+          <p class="note" style="margin-top:8px;">Pour l'instant cette bibliothèque sert juste de stockage de référence — elle n'est pas encore intégrée aux visuels générés par l'IA.</p>
 
           <div class="comptage-actions-bar" style="margin-top:14px;">
-            <button class="btn" onclick="telechargerStorySocial()">⬇️ Télécharger l'image</button>
+            <button class="btn" id="poster-download-btn" onclick="telechargerPosterIA()" disabled>⬇️ Télécharger l'image</button>
           </div>
         </div>
       </div>
@@ -2942,6 +2921,12 @@
       <div id="evenements-mois-liste" style="margin-top:16px;"></div>
       <div class="comptage-actions-bar" style="margin-top:14px;">
         <button class="btn" onclick="genererAfficheProgramme()">🖼️ Générer l'affiche du programme</button>
+      </div>
+      <div class="social-canvas-wrap" style="width:216px;height:270px;margin-top:14px;">
+        <canvas id="programmeCanvas" width="1080" height="1350" style="width:216px;height:270px;"></canvas>
+      </div>
+      <div class="comptage-actions-bar" style="margin-top:14px;">
+        <button class="btn ghost" onclick="telechargerProgrammeSocial()">⬇️ Télécharger l'affiche</button>
       </div>
     </div>
 
@@ -3442,7 +3427,8 @@ function activerOnglet(tab){
   if(tab === 'plouvier') renderPlouvierTab();
   if(tab === 'previsions') renderPrevisionTab();
   if(tab === 'social'){
-    genererStorySocial();
+    choisirFormatPoster(posterState.format);
+    dessinerAfficheProgramme();
     renderGaleriePhotosEtablissement();
     renderEvenementsMois();
     const contexteEl = document.getElementById('social-ia-contexte');
@@ -4117,8 +4103,8 @@ function renderSuggestionFond(){
     ${alerte}`;
 }
 
-/* ============ RÉSEAUX SOCIAUX (générateur de visuel, 100% local, sans IA) ============ */
-const socialState = { template: 'cadre', image: null, format: 'story' };
+/* ============ CRÉATEUR DE VISUEL (design sur-mesure généré par l'IA) ============ */
+const posterState = { format: 'publication', html: '' };
 
 const FORMATS_SOCIAL = {
   story: { w: 1080, h: 1920, label: 'Story' },
@@ -4126,63 +4112,81 @@ const FORMATS_SOCIAL = {
   affiche: { w: 1080, h: 1350, label: 'Affiche' },
 };
 
-function choisirFormatSocial(nom){
+function choisirFormatPoster(nom){
   const format = FORMATS_SOCIAL[nom];
   if(!format) return;
-  socialState.format = nom;
-  const canvas = document.getElementById('socialCanvas');
-  if(canvas){
-    canvas.width = format.w;
-    canvas.height = format.h;
-    const largeurAffichee = 270;
-    canvas.style.width = largeurAffichee + 'px';
-    canvas.style.height = Math.round(largeurAffichee * format.h / format.w) + 'px';
+  posterState.format = nom;
+  const wrap = document.getElementById('poster-frame-wrap');
+  const frame = document.getElementById('posterFrame');
+  const largeurAffichee = 270;
+  const echelle = largeurAffichee / format.w;
+  if(wrap){
+    wrap.style.width = largeurAffichee + 'px';
+    wrap.style.height = Math.round(format.h * echelle) + 'px';
   }
-  document.querySelectorAll('#social-format-choix button').forEach(b=>{
+  if(frame){
+    frame.style.width = format.w + 'px';
+    frame.style.height = format.h + 'px';
+    frame.style.transform = `scale(${echelle})`;
+  }
+  document.querySelectorAll('#poster-format-choix button').forEach(b=>{
     b.classList.toggle('active', b.textContent === format.label);
   });
-  genererStorySocial();
 }
 
-function chargerPhotoSocial(event){
-  const file = event.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const img = new Image();
-    img.onload = () => {
-      socialState.image = img;
-      genererStorySocial();
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
+// Filet de sécurité côté client (en plus du nettoyage déjà fait côté serveur)
+// avant d'insérer le HTML généré par l'IA dans la page.
+function nettoyerVisuelHtmlClient(html){
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<link\b[^>]*>/gi, '')
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed\b[^>]*>/gi, '')
+    .replace(/<img\b[^>]*>/gi, '')
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+    .replace(/javascript:/gi, '');
 }
 
-function choisirTemplateSocial(nom){
-  socialState.template = nom;
-  document.querySelectorAll('#social-template-choix button').forEach(b=>{
-    b.classList.toggle('active', b.textContent === ({cadre:'Cadre doré', bandeau:'Bandeau bas', citation:'Citation'})[nom]);
-  });
-  genererStorySocial();
+function afficherPosterIA(html){
+  const frame = document.getElementById('posterFrame');
+  if(!frame) return;
+  posterState.html = html;
+  frame.innerHTML = nettoyerVisuelHtmlClient(html);
+  const btn = document.getElementById('poster-download-btn');
+  if(btn) btn.disabled = false;
 }
 
-function dessinerImageCover(ctx, img, x, y, w, h){
-  const ratioCible = w / h;
-  const ratioImg = img.width / img.height;
-  let sx, sy, sw, sh;
-  if(ratioImg > ratioCible){
-    sh = img.height;
-    sw = sh * ratioCible;
-    sx = (img.width - sw) / 2;
-    sy = 0;
-  }else{
-    sw = img.width;
-    sh = sw / ratioCible;
-    sx = 0;
-    sy = (img.height - sh) / 2;
+async function telechargerPosterIA(){
+  const frame = document.getElementById('posterFrame');
+  if(!frame || !posterState.html){
+    afficherToast('Générez un visuel avant de le télécharger.');
+    return;
   }
-  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  const transformOriginal = frame.style.transform;
+  frame.style.transform = 'none';
+  try{
+    const format = FORMATS_SOCIAL[posterState.format];
+    const canvas = await html2canvas(frame, { width: format.w, height: format.h, backgroundColor: null, scale: 1 });
+    canvas.toBlob((blob)=>{
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `visuel-cafe-jean-${todayIso()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      afficherToast('Image téléchargée — prête à publier !');
+    }, 'image/png');
+  }catch(e){
+    console.error(e);
+    afficherToast("Erreur lors de l'export de l'image.");
+  }finally{
+    frame.style.transform = transformOriginal;
+  }
 }
 
 function couleurCss(nomVariable){
@@ -4207,15 +4211,15 @@ function dessinerLogoCafeJean(ctx, centerX, topY, hauteurCible){
   }
 }
 
-function genererStorySocial(){
-  const canvas = document.getElementById('socialCanvas');
+// Affiche listant les événements du mois, générée depuis "Programme du mois"
+// (celle-ci reste un gabarit fixe dessiné en canvas — c'est une liste de
+// données, pas un visuel créatif à générer par l'IA).
+function dessinerAfficheProgramme(){
+  const canvas = document.getElementById('programmeCanvas');
   if(!canvas) return;
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
-  const titre = document.getElementById('social-titre').value.trim();
-  const sousTitre = document.getElementById('social-sous-titre').value.trim();
   const gold = couleurCss('--gold') || '#C9A24B';
-  const emerald = couleurCss('--emerald') || '#2F6B4F';
   const ivoire = couleurCss('--paper') || '#F5F1E6';
   const encre = couleurCss('--ink') || '#221F1B';
 
@@ -4223,149 +4227,61 @@ function genererStorySocial(){
   ctx.fillStyle = encre;
   ctx.fillRect(0,0,W,H);
 
-  if(socialState.template === 'citation'){
-    // Fond sombre uni (avec photo en fond très assombrie si dispo)
-    if(socialState.image){
-      dessinerImageCover(ctx, socialState.image, 0, 0, W, H);
-      ctx.fillStyle = 'rgba(20,16,12,0.72)';
-      ctx.fillRect(0,0,W,H);
-    }
-    ctx.strokeStyle = gold;
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(W*0.28, H*0.40); ctx.lineTo(W*0.72, H*0.40); ctx.stroke();
+  const moisCourant = MOIS_NOMS_FR[new Date().getMonth()];
+  ctx.textAlign = 'center';
+  dessinerLogoCafeJean(ctx, W/2, H*0.035, H*0.07);
+
+  ctx.font = "700 50px 'Playfair Display', serif";
+  ctx.fillStyle = gold;
+  ctx.fillText('PROGRAMME DE ' + moisCourant.toUpperCase(), W/2, H*0.155);
+
+  ctx.strokeStyle = gold;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(W*0.15, H*0.19); ctx.lineTo(W*0.85, H*0.19); ctx.stroke();
+
+  const evts = (DATA.evenementsMois || []).slice(0, 12);
+  const zoneHaut = H*0.24;
+  const zoneBas = H*0.94;
+  const pas = evts.length > 0 ? (zoneBas - zoneHaut) / evts.length : (zoneBas - zoneHaut);
+  const taille = Math.max(22, Math.min(40, pas * 0.42));
+
+  evts.forEach((e, i) => {
+    const y = zoneHaut + pas*i + pas*0.6;
+    ctx.textAlign = 'left';
+    ctx.font = `700 ${taille}px 'Playfair Display', serif`;
+    ctx.fillStyle = gold;
+    ctx.fillText(formatDateFr(e.date).slice(0,5), W*0.09, y);
+    ctx.font = `500 ${taille}px 'Playfair Display', serif`;
     ctx.fillStyle = ivoire;
-    ctx.textAlign = 'center';
-    ctx.font = "italic 600 66px 'Playfair Display', serif";
-    envelopperTexte(ctx, titre || 'Votre texte ici', W/2, H*0.5, W*0.8, 78);
-    ctx.beginPath(); ctx.moveTo(W*0.28, H*0.62); ctx.lineTo(W*0.72, H*0.62); ctx.stroke();
-    ctx.font = "600 34px 'Playfair Display', serif";
-    ctx.fillStyle = gold;
-    ctx.fillText(sousTitre || '— Café Jean', W/2, H*0.68);
-
-  }else if(socialState.template === 'bandeau'){
-    const hauteurPhoto = H*0.74;
-    if(socialState.image){
-      dessinerImageCover(ctx, socialState.image, 0, 0, W, hauteurPhoto);
-    }else{
-      ctx.fillStyle = '#3a352c';
-      ctx.fillRect(0,0,W,hauteurPhoto);
-    }
-    ctx.fillStyle = emerald;
-    ctx.fillRect(0, hauteurPhoto, W, H-hauteurPhoto);
-    ctx.strokeStyle = gold;
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(0, hauteurPhoto); ctx.lineTo(W, hauteurPhoto); ctx.stroke();
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = ivoire;
-    ctx.font = "700 58px 'Playfair Display', serif";
-    envelopperTexte(ctx, titre || 'Votre titre ici', W/2, hauteurPhoto + 90, W*0.85, 64);
-    ctx.font = "500 32px 'Playfair Display', serif";
-    ctx.fillStyle = gold;
-    ctx.fillText(sousTitre || '', W/2, hauteurPhoto + 170);
-
-    dessinerLogoCafeJean(ctx, W/2, H-72, 40);
-
-  }else if(socialState.template === 'programme'){
-    // Affiche listant les événements du mois (généré depuis "Programme du mois")
-    const moisCourant = MOIS_NOMS_FR[new Date().getMonth()];
-    ctx.textAlign = 'center';
-    dessinerLogoCafeJean(ctx, W/2, H*0.035, H*0.07);
-
-    ctx.font = "700 50px 'Playfair Display', serif";
-    ctx.fillStyle = gold;
-    ctx.fillText('PROGRAMME DE ' + moisCourant.toUpperCase(), W/2, H*0.155);
-
-    ctx.strokeStyle = gold;
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(W*0.15, H*0.19); ctx.lineTo(W*0.85, H*0.19); ctx.stroke();
-
-    const evts = (DATA.evenementsMois || []).slice(0, 12);
-    const zoneHaut = H*0.24;
-    const zoneBas = H*0.94;
-    const pas = evts.length > 0 ? (zoneBas - zoneHaut) / evts.length : (zoneBas - zoneHaut);
-    const taille = Math.max(22, Math.min(40, pas * 0.42));
-
-    evts.forEach((e, i) => {
-      const y = zoneHaut + pas*i + pas*0.6;
-      ctx.textAlign = 'left';
-      ctx.font = `700 ${taille}px 'Playfair Display', serif`;
+    ctx.fillText(e.titre, W*0.09 + taille*4.6, y);
+    if(e.horaire){
+      ctx.textAlign = 'right';
+      ctx.font = `500 ${taille*0.78}px 'Playfair Display', serif`;
       ctx.fillStyle = gold;
-      ctx.fillText(formatDateFr(e.date).slice(0,5), W*0.09, y);
-      ctx.font = `500 ${taille}px 'Playfair Display', serif`;
-      ctx.fillStyle = ivoire;
-      ctx.fillText(e.titre, W*0.09 + taille*4.6, y);
-      if(e.horaire){
-        ctx.textAlign = 'right';
-        ctx.font = `500 ${taille*0.78}px 'Playfair Display', serif`;
-        ctx.fillStyle = gold;
-        ctx.fillText(e.horaire, W*0.91, y);
-      }
-    });
-    if(evts.length === 0){
-      ctx.textAlign = 'center';
-      ctx.fillStyle = ivoire;
-      ctx.font = "500 32px 'Playfair Display', serif";
-      ctx.fillText('Aucun événement pour le moment', W/2, H/2);
+      ctx.fillText(e.horaire, W*0.91, y);
     }
-
-  }else{
-    // 'cadre' — cadre doré double-liseré autour de la photo pleine page
-    if(socialState.image){
-      dessinerImageCover(ctx, socialState.image, 0, 0, W, H);
-      ctx.fillStyle = 'rgba(20,16,12,0.28)';
-      ctx.fillRect(0,0,W,H);
-    }
-    const marge = 46;
-    ctx.strokeStyle = gold;
-    ctx.lineWidth = 4;
-    ctx.strokeRect(marge, marge, W-marge*2, H-marge*2);
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(marge+14, marge+14, W-(marge+14)*2, H-(marge+14)*2);
-
+  });
+  if(evts.length === 0){
     ctx.textAlign = 'center';
-    dessinerLogoCafeJean(ctx, W/2, marge+40, 56);
-
-    ctx.font = "700 62px 'Playfair Display', serif";
-    envelopperTexte(ctx, titre || 'Votre titre ici', W/2, H*0.82, W*0.8, 70);
+    ctx.fillStyle = ivoire;
     ctx.font = "500 32px 'Playfair Display', serif";
-    ctx.fillStyle = gold;
-    ctx.fillText(sousTitre || '', W/2, H*0.82 + 62);
+    ctx.fillText('Aucun événement pour le moment', W/2, H/2);
   }
 }
 
-// Découpe un texte trop long sur plusieurs lignes centrées, autour d'un point vertical donné.
-function envelopperTexte(ctx, texte, x, yCentre, largeurMax, interligne){
-  const mots = texte.split(' ');
-  const lignes = [];
-  let ligneCourante = '';
-  for(const mot of mots){
-    const essai = ligneCourante ? ligneCourante + ' ' + mot : mot;
-    if(ctx.measureText(essai).width > largeurMax && ligneCourante){
-      lignes.push(ligneCourante);
-      ligneCourante = mot;
-    }else{
-      ligneCourante = essai;
-    }
-  }
-  if(ligneCourante) lignes.push(ligneCourante);
-  const yDepart = yCentre - ((lignes.length-1)*interligne)/2;
-  lignes.forEach((ligne,i)=> ctx.fillText(ligne, x, yDepart + i*interligne));
-}
-
-function telechargerStorySocial(){
-  const canvas = document.getElementById('socialCanvas');
+function telechargerProgrammeSocial(){
+  const canvas = document.getElementById('programmeCanvas');
   if(!canvas) return;
   canvas.toBlob((blob)=>{
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `story-cafe-jean-${todayIso()}.png`;
+    a.download = `programme-cafe-jean-${todayIso()}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    afficherToast('Image téléchargée — prête à publier !');
+    afficherToast('Affiche téléchargée — prête à publier !');
   }, 'image/png');
 }
 
@@ -4432,15 +4348,7 @@ function renderGaleriePhotosEtablissement(){
 }
 
 function utiliserPhotoEtablissement(id){
-  const photo = (DATA.photosEtablissement||[]).find(p=>p.id===id);
-  if(!photo) return;
-  const img = new Image();
-  img.onload = () => {
-    socialState.image = img;
-    genererStorySocial();
-    afficherToast('Photo appliquée au visuel.');
-  };
-  img.src = photo.dataUrl;
+  afficherToast("Cette bibliothèque n'est pas encore utilisée par les visuels générés par l'IA.");
 }
 
 function supprimerPhotoEtablissement(id){
@@ -4503,12 +4411,9 @@ function genererAfficheProgramme(){
     afficherToast("Ajoutez au moins un événement avant de générer l'affiche.");
     return;
   }
-  choisirFormatSocial('affiche');
-  socialState.template = 'programme';
-  document.querySelectorAll('#social-template-choix button').forEach(b=> b.classList.remove('active'));
-  genererStorySocial();
-  const titreEl = document.getElementById('social-visuel-titre');
-  if(titreEl) titreEl.scrollIntoView({ behavior:'smooth', block:'start' });
+  dessinerAfficheProgramme();
+  const canvas = document.getElementById('programmeCanvas');
+  if(canvas) canvas.scrollIntoView({ behavior:'smooth', block:'center' });
 }
 
 /* ============ ASSISTANT IA — IDÉES DE PUBLICATION ============ */
@@ -4544,7 +4449,7 @@ async function genererIdeesSocial(){
   try{
     const res = await supabaseFetch('/functions/v1/social-ai', {
       method: 'POST',
-      body: JSON.stringify({ brief, contexte, da })
+      body: JSON.stringify({ brief, contexte, da, format: posterState.format })
     });
     const data = await res.json();
     if(!res.ok || !data.ok) throw new Error(data.error || 'Erreur inconnue.');
@@ -4561,40 +4466,30 @@ function afficherIdeesSocial(data){
   const resultatEl = document.getElementById('social-ia-resultat');
   const captions = Array.isArray(data.captions) ? data.captions : [];
   const hashtags = Array.isArray(data.hashtags) ? data.hashtags.join(' ') : '';
+
+  if(typeof data.visuelHtml === 'string' && data.visuelHtml.trim()){
+    afficherPosterIA(data.visuelHtml);
+  }
+
   if(captions.length === 0){
-    resultatEl.innerHTML = '<p class="note">Aucune proposition générée.</p>';
+    resultatEl.innerHTML = data.visuelHtml ? '<p class="note">Visuel généré ci-dessus ↑ (pas de légende cette fois).</p>' : '<p class="note">Aucune proposition générée.</p>';
     return;
   }
   window._socialIaCaptions = captions.map(c => (c.texte || '') + (hashtags ? '\n\n' + hashtags : ''));
-  window._socialIaVisuel = (data.visuel && data.visuel.titre) ? data.visuel : null;
 
-  const visuelHtml = window._socialIaVisuel ? `
+  const visuelNote = data.visuelHtml ? `
     <div class="recette-item" style="margin-bottom:14px; padding:14px 16px; border:1px solid var(--line); border-radius:6px; background:var(--paper-2);">
-      <div class="sub" style="margin-bottom:6px; font-weight:700;">🖼️ Visuel généré ci-dessus ↑ (Story / Affiche / Publication)</div>
-      <div style="margin-bottom:4px;"><strong>${escapeHtml(window._socialIaVisuel.titre)}</strong></div>
-      <div style="margin-bottom:10px; color:var(--ink-soft);">${escapeHtml(window._socialIaVisuel.sousTitre || '')}</div>
-      <button class="btn ghost" onclick="revoirVisuelIA()">Revoir le visuel ↑</button>
+      <div class="sub" style="font-weight:700;">🖼️ Visuel généré ci-dessus ↑</div>
+      <button class="btn ghost" style="margin-top:8px;" onclick="revoirVisuelIA()">Revoir le visuel ↑</button>
     </div>` : '';
 
-  resultatEl.innerHTML = visuelHtml + captions.map((c, i) => `
+  resultatEl.innerHTML = visuelNote + captions.map((c, i) => `
     <div class="recette-item" style="margin-bottom:10px; padding:14px 16px; border:1px solid var(--line); border-radius:6px;">
       <div class="sub" style="margin-bottom:6px; font-weight:700;">${escapeHtml(c.style || 'Proposition ' + (i+1))}</div>
       <div style="white-space:pre-wrap; margin-bottom:10px;">${escapeHtml(c.texte || '')}</div>
       <button class="btn ghost" onclick="copierTexteSocial(${i})">📋 Copier</button>
     </div>
   `).join('') + (hashtags ? `<p class="note"><strong>Hashtags suggérés :</strong> ${escapeHtml(hashtags)}</p>` : '');
-
-  appliquerVisuelIA(window._socialIaVisuel);
-}
-
-function appliquerVisuelIA(v){
-  if(!v) return;
-  choisirFormatSocial('publication');
-  const titreEl = document.getElementById('social-titre');
-  const sousTitreEl = document.getElementById('social-sous-titre');
-  if(titreEl) titreEl.value = v.titre || '';
-  if(sousTitreEl) sousTitreEl.value = v.sousTitre || '';
-  genererStorySocial();
 }
 
 function revoirVisuelIA(){
