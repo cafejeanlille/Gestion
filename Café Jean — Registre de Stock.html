@@ -2874,12 +2874,16 @@
 
           <div class="form-grid">
             <div style="grid-column:1/-1;">
-              <label for="social-photo">Photo</label>
+              <label for="social-photo">Photo (usage unique)</label>
               <input type="file" id="social-photo" accept="image/*" onchange="chargerPhotoSocial(event)">
             </div>
           </div>
 
-          <label style="margin-top:4px; display:block;">Modèle</label>
+          <label style="margin-top:10px; display:block;">Bibliothèque de photos de l'établissement</label>
+          <div id="social-photos-galerie" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;"></div>
+          <input type="file" id="social-photos-ajout" accept="image/*" multiple onchange="ajouterPhotosEtablissement(event)">
+
+          <label style="margin-top:14px; display:block;">Modèle</label>
           <div class="template-choix" id="social-template-choix">
             <button type="button" class="active" onclick="choisirTemplateSocial('cadre')">Cadre doré</button>
             <button type="button" onclick="choisirTemplateSocial('bandeau')">Bandeau bas</button>
@@ -2905,12 +2909,42 @@
     </div>
 
     <div class="card">
+      <h2>📅 Programme du mois</h2>
+      <p class="note">Ajoutez vos événements du mois (concerts, brunchs, soirées...) puis générez une affiche qui les liste tous, avec la DA du Café Jean.</p>
+      <div class="form-grid">
+        <div>
+          <label for="evt-date">Date</label>
+          <input type="date" id="evt-date">
+        </div>
+        <div>
+          <label for="evt-titre">Événement</label>
+          <input type="text" id="evt-titre" placeholder="Ex : Concert live">
+        </div>
+        <div>
+          <label for="evt-horaire">Horaire</label>
+          <input type="text" id="evt-horaire" placeholder="Ex : 20h">
+        </div>
+      </div>
+      <div class="comptage-actions-bar" style="margin-top:14px;">
+        <button class="btn ghost" onclick="ajouterEvenementMois()">+ Ajouter l'événement</button>
+      </div>
+      <div id="evenements-mois-liste" style="margin-top:16px;"></div>
+      <div class="comptage-actions-bar" style="margin-top:14px;">
+        <button class="btn" onclick="genererAfficheProgramme()">🖼️ Générer l'affiche du programme</button>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>🤖 Assistant IA — idées de publication</h2>
       <p class="note">Décrivez en quelques mots ce que vous voulez publier (nouveau produit, événement, happy hour...). L'IA propose plusieurs légendes et des hashtags — vous copiez celle qui vous plaît et publiez vous-même sur Instagram/Facebook. Rien n'est publié automatiquement.</p>
       <div class="form-grid">
         <div style="grid-column:1/-1;">
           <label for="social-ia-brief">Ce que vous voulez publier</label>
           <textarea id="social-ia-brief" rows="3" placeholder="Ex : nouvelle bière artisanale Norsse IPA disponible dès ce soir, happy hour de 17h à 19h"></textarea>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label for="social-ia-contexte">Contexte pour l'IA — histoire, ambiance du café (optionnel, à remplir une fois)</label>
+          <textarea id="social-ia-contexte" rows="2" placeholder="Ex : café-bar ouvert en 2020 dans le Vieux-Lille, ambiance rétro chaleureuse, clientèle d'habitués" oninput="sauvegarderContexteIA()"></textarea>
         </div>
       </div>
       <div class="comptage-actions-bar" style="margin-top:14px;">
@@ -3268,6 +3302,9 @@ function dataParDefaut(){
     recettes: [],
     seauEau: { dernierVidageISO: new Date().toISOString() },
     commandePlouvier: { produits: [] },
+    evenementsMois: [],
+    photosEtablissement: [],
+    aProposCafe: '',
     tauxChargesVariables: 27,
     chargesFixes: [
       {label:'Loyer', montant:0},
@@ -3392,7 +3429,13 @@ function activerOnglet(tab){
   if(tab === 'recettes') renderRecettesTab();
   if(tab === 'plouvier') renderPlouvierTab();
   if(tab === 'previsions') renderPrevisionTab();
-  if(tab === 'social') genererStorySocial();
+  if(tab === 'social'){
+    genererStorySocial();
+    renderGaleriePhotosEtablissement();
+    renderEvenementsMois();
+    const contexteEl = document.getElementById('social-ia-contexte');
+    if(contexteEl) contexteEl.value = DATA.aProposCafe || '';
+  }
 }
 
 /* ============ CHARGES FIXES ============ */
@@ -4193,6 +4236,51 @@ function genererStorySocial(){
     ctx.fillStyle = ivoire;
     ctx.fillText('CAFÉ JEAN', W/2, H-50);
 
+  }else if(socialState.template === 'programme'){
+    // Affiche listant les événements du mois (généré depuis "Programme du mois")
+    const moisCourant = MOIS_NOMS_FR[new Date().getMonth()];
+    ctx.textAlign = 'center';
+    ctx.fillStyle = ivoire;
+    ctx.font = "600 30px 'Playfair Display', serif";
+    ctx.fillText('CAFÉ JEAN', W/2, H*0.09);
+
+    ctx.font = "700 50px 'Playfair Display', serif";
+    ctx.fillStyle = gold;
+    ctx.fillText('PROGRAMME DE ' + moisCourant.toUpperCase(), W/2, H*0.155);
+
+    ctx.strokeStyle = gold;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(W*0.15, H*0.19); ctx.lineTo(W*0.85, H*0.19); ctx.stroke();
+
+    const evts = (DATA.evenementsMois || []).slice(0, 12);
+    const zoneHaut = H*0.24;
+    const zoneBas = H*0.94;
+    const pas = evts.length > 0 ? (zoneBas - zoneHaut) / evts.length : (zoneBas - zoneHaut);
+    const taille = Math.max(22, Math.min(40, pas * 0.42));
+
+    evts.forEach((e, i) => {
+      const y = zoneHaut + pas*i + pas*0.6;
+      ctx.textAlign = 'left';
+      ctx.font = `700 ${taille}px 'Playfair Display', serif`;
+      ctx.fillStyle = gold;
+      ctx.fillText(formatDateFr(e.date).slice(0,5), W*0.09, y);
+      ctx.font = `500 ${taille}px 'Playfair Display', serif`;
+      ctx.fillStyle = ivoire;
+      ctx.fillText(e.titre, W*0.09 + taille*4.6, y);
+      if(e.horaire){
+        ctx.textAlign = 'right';
+        ctx.font = `500 ${taille*0.78}px 'Playfair Display', serif`;
+        ctx.fillStyle = gold;
+        ctx.fillText(e.horaire, W*0.91, y);
+      }
+    });
+    if(evts.length === 0){
+      ctx.textAlign = 'center';
+      ctx.fillStyle = ivoire;
+      ctx.font = "500 32px 'Playfair Display', serif";
+      ctx.fillText('Aucun événement pour le moment', W/2, H/2);
+    }
+
   }else{
     // 'cadre' — cadre doré double-liseré autour de la photo pleine page
     if(socialState.image){
@@ -4255,12 +4343,162 @@ function telechargerStorySocial(){
   }, 'image/png');
 }
 
+/* ============ BIBLIOTHÈQUE DE PHOTOS DE L'ÉTABLISSEMENT ============ */
+function redimensionnerImageFichier(file, maxDim, qualite){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if(width > height && width > maxDim){
+          height = Math.round(height * (maxDim/width));
+          width = maxDim;
+        }else if(height >= width && height > maxDim){
+          width = Math.round(width * (maxDim/height));
+          height = maxDim;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', qualite));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function ajouterPhotosEtablissement(event){
+  const files = Array.from(event.target.files || []);
+  if(files.length === 0) return;
+  DATA.photosEtablissement = DATA.photosEtablissement || [];
+  for(const file of files){
+    try{
+      const dataUrl = await redimensionnerImageFichier(file, 900, 0.72);
+      DATA.photosEtablissement.push({ id: genererId(), dataUrl });
+    }catch(e){
+      console.error('Erreur import photo', e);
+    }
+  }
+  sauvegarder();
+  renderGaleriePhotosEtablissement();
+  afficherToast('Photo(s) ajoutée(s) à la bibliothèque.');
+  event.target.value = '';
+}
+
+function renderGaleriePhotosEtablissement(){
+  const wrap = document.getElementById('social-photos-galerie');
+  if(!wrap) return;
+  const photos = DATA.photosEtablissement || [];
+  if(photos.length === 0){
+    wrap.innerHTML = '<p class="note" style="margin:0;">Aucune photo enregistrée pour l\'instant — ajoutez des photos de votre établissement, de la carte...</p>';
+    return;
+  }
+  wrap.innerHTML = photos.map(p => `
+    <div style="position:relative;">
+      <img src="${p.dataUrl}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:pointer;" onclick="utiliserPhotoEtablissement('${p.id}')" title="Utiliser cette photo">
+      <button type="button" onclick="supprimerPhotoEtablissement('${p.id}')" title="Supprimer" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:none;background:var(--rust);color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0;">×</button>
+    </div>
+  `).join('');
+}
+
+function utiliserPhotoEtablissement(id){
+  const photo = (DATA.photosEtablissement||[]).find(p=>p.id===id);
+  if(!photo) return;
+  const img = new Image();
+  img.onload = () => {
+    socialState.image = img;
+    genererStorySocial();
+    afficherToast('Photo appliquée au visuel.');
+  };
+  img.src = photo.dataUrl;
+}
+
+function supprimerPhotoEtablissement(id){
+  DATA.photosEtablissement = (DATA.photosEtablissement||[]).filter(p=>p.id!==id);
+  sauvegarder();
+  renderGaleriePhotosEtablissement();
+}
+
+/* ============ PROGRAMME DU MOIS ============ */
+const MOIS_NOMS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+
+function ajouterEvenementMois(){
+  const dateEl = document.getElementById('evt-date');
+  const titreEl = document.getElementById('evt-titre');
+  const horaireEl = document.getElementById('evt-horaire');
+  const date = dateEl.value;
+  const titre = titreEl.value.trim();
+  const horaire = horaireEl.value.trim();
+  if(!date || !titre){
+    afficherToast("Indiquez au moins une date et un nom d'événement.");
+    return;
+  }
+  DATA.evenementsMois = DATA.evenementsMois || [];
+  DATA.evenementsMois.push({ id: genererId(), date, titre, horaire });
+  DATA.evenementsMois.sort((a,b)=> a.date < b.date ? -1 : 1);
+  sauvegarder();
+  renderEvenementsMois();
+  dateEl.value = ''; titreEl.value = ''; horaireEl.value = '';
+  afficherToast('Événement ajouté.');
+}
+
+function renderEvenementsMois(){
+  const wrap = document.getElementById('evenements-mois-liste');
+  if(!wrap) return;
+  const evts = DATA.evenementsMois || [];
+  if(evts.length === 0){
+    wrap.innerHTML = '<p class="note">Aucun événement enregistré pour l\'instant.</p>';
+    return;
+  }
+  wrap.innerHTML = `<div style="overflow-x:auto;"><table>
+    <thead><tr><th>Date</th><th>Événement</th><th>Horaire</th><th></th></tr></thead>
+    <tbody>${evts.map(e => `<tr>
+      <td>${formatDateFr(e.date)}</td>
+      <td>${escapeHtml(e.titre)}</td>
+      <td>${escapeHtml(e.horaire||'')}</td>
+      <td><button class="icon-btn" title="Supprimer" onclick="supprimerEvenementMois('${e.id}')">🗑</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function supprimerEvenementMois(id){
+  DATA.evenementsMois = (DATA.evenementsMois||[]).filter(e=>e.id!==id);
+  sauvegarder();
+  renderEvenementsMois();
+}
+
+function genererAfficheProgramme(){
+  const evts = DATA.evenementsMois || [];
+  if(evts.length === 0){
+    afficherToast("Ajoutez au moins un événement avant de générer l'affiche.");
+    return;
+  }
+  choisirFormatSocial('affiche');
+  socialState.template = 'programme';
+  document.querySelectorAll('#social-template-choix button').forEach(b=> b.classList.remove('active'));
+  genererStorySocial();
+  const titreEl = document.getElementById('social-visuel-titre');
+  if(titreEl) titreEl.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
 /* ============ ASSISTANT IA — IDÉES DE PUBLICATION ============ */
+function sauvegarderContexteIA(){
+  const el = document.getElementById('social-ia-contexte');
+  DATA.aProposCafe = el ? el.value : '';
+  sauvegarder();
+}
+
 async function genererIdeesSocial(){
   const briefEl = document.getElementById('social-ia-brief');
+  const contexteEl = document.getElementById('social-ia-contexte');
   const btn = document.getElementById('social-ia-btn');
   const resultatEl = document.getElementById('social-ia-resultat');
   const brief = (briefEl.value || '').trim();
+  const contexte = (contexteEl && contexteEl.value || '').trim();
   if(!brief){
     afficherToast('Décrivez ce que vous voulez publier.');
     return;
@@ -4272,7 +4510,7 @@ async function genererIdeesSocial(){
   try{
     const res = await supabaseFetch('/functions/v1/social-ai', {
       method: 'POST',
-      body: JSON.stringify({ brief })
+      body: JSON.stringify({ brief, contexte })
     });
     const data = await res.json();
     if(!res.ok || !data.ok) throw new Error(data.error || 'Erreur inconnue.');
