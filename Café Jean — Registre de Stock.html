@@ -2965,9 +2965,15 @@
         Je ne compte pas le détail des billets/pièces — saisir juste le total compté
       </label>
 
-      <div id="cpt-total-manuel-wrap" style="display:none;margin-bottom:20px;">
-        <label for="cpt-total-manuel">Total compté en caisse (€)</label>
-        <input type="number" id="cpt-total-manuel" min="0" step="0.01" class="qty-input" placeholder="0.00" oninput="majComptageCalcul()">
+      <div id="cpt-total-manuel-wrap" class="form-grid" style="display:none;margin-bottom:20px;">
+        <div>
+          <label for="cpt-total-billets">Total billets (€)</label>
+          <input type="number" id="cpt-total-billets" min="0" step="0.01" class="qty-input" placeholder="0.00" oninput="majComptageCalcul()">
+        </div>
+        <div>
+          <label for="cpt-total-pieces">Total pièces (€)</label>
+          <input type="number" id="cpt-total-pieces" min="0" step="0.01" class="qty-input" placeholder="0.00" oninput="majComptageCalcul()">
+        </div>
       </div>
 
       <div class="denom-columns" id="cpt-detail-columns">
@@ -3825,8 +3831,10 @@ function comptageModeSimple(){
 
 function obtenirTotalEtDetailComptage(){
   if(comptageModeSimple()){
-    const total = parseFloat(document.getElementById('cpt-total-manuel').value) || 0;
-    return { total, detail: {} };
+    const billets = parseFloat(document.getElementById('cpt-total-billets').value) || 0;
+    const pieces = parseFloat(document.getElementById('cpt-total-pieces').value) || 0;
+    const total = Math.round((billets + pieces) * 100) / 100;
+    return { total, detail: {}, manuelBillets: billets, manuelPieces: pieces };
   }
   return calculerTotalDenominations();
 }
@@ -3841,8 +3849,10 @@ function basculerModeComptageSimple(){
   if(suggestionCard) suggestionCard.style.display = simple ? 'none' : '';
   if(simple) viderDenominations();
   else{
-    const manuelEl = document.getElementById('cpt-total-manuel');
-    if(manuelEl) manuelEl.value = '';
+    const billetsEl = document.getElementById('cpt-total-billets');
+    const piecesEl = document.getElementById('cpt-total-pieces');
+    if(billetsEl) billetsEl.value = '';
+    if(piecesEl) piecesEl.value = '';
   }
   majComptageCalcul();
 }
@@ -3880,8 +3890,10 @@ function chargerCaDuJourComptage(){
     if(modeSimpleEl) modeSimpleEl.checked = !!comptageExistant.modeSimple;
     basculerModeComptageSimple();
     if(comptageExistant.modeSimple){
-      const manuelEl = document.getElementById('cpt-total-manuel');
-      if(manuelEl) manuelEl.value = comptageExistant.totalCompte;
+      const billetsEl = document.getElementById('cpt-total-billets');
+      const piecesEl = document.getElementById('cpt-total-pieces');
+      if(billetsEl) billetsEl.value = comptageExistant.manuelBillets != null ? comptageExistant.manuelBillets : comptageExistant.totalCompte;
+      if(piecesEl) piecesEl.value = comptageExistant.manuelPieces != null ? comptageExistant.manuelPieces : '';
     }else{
       remplirDenominations(comptageExistant.denominations);
     }
@@ -4658,8 +4670,10 @@ function reinitialiserFormComptage(){
   viderDenominations();
   const modeSimpleEl = document.getElementById('cpt-mode-simple');
   if(modeSimpleEl) modeSimpleEl.checked = false;
-  const manuelEl = document.getElementById('cpt-total-manuel');
-  if(manuelEl) manuelEl.value = '';
+  const billetsEl = document.getElementById('cpt-total-billets');
+  const piecesEl = document.getElementById('cpt-total-pieces');
+  if(billetsEl) billetsEl.value = '';
+  if(piecesEl) piecesEl.value = '';
   basculerModeComptageSimple();
   const carteContactEl = document.getElementById('cpt-carte-contact');
   const carteSansContactEl = document.getElementById('cpt-carte-sans-contact');
@@ -4681,7 +4695,7 @@ function chargerComptagePourEdition(id){
 function enregistrerComptage(){
   const date = document.getElementById('cpt-date').value || todayIso();
   const modeSimple = comptageModeSimple();
-  const { detail } = obtenirTotalEtDetailComptage();
+  const { detail, manuelBillets, manuelPieces } = obtenirTotalEtDetailComptage();
   const { total, fond, ca, net, ecart, carteRapport, carteContact, carteSansContact, carteTotal, ecartCarte } = majComptageCalcul();
 
   if(total === 0 && carteTotal === 0){
@@ -4692,7 +4706,9 @@ function enregistrerComptage(){
   const entree = {
     id: genererId(), date,
     fondCaisse: fond, denominations: detail, totalCompte: total, caIndique: ca, especesNettes: net, ecart,
-    carteRapport, carteContact, carteSansContact, carteTotal, ecartCarte, modeSimple
+    carteRapport, carteContact, carteSansContact, carteTotal, ecartCarte, modeSimple,
+    manuelBillets: modeSimple ? manuelBillets : undefined,
+    manuelPieces: modeSimple ? manuelPieces : undefined,
   };
   const existant = DATA.comptages.find(c=>c.date===date);
   if(existant){
