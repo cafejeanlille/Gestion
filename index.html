@@ -730,7 +730,21 @@
   @keyframes seauFlotte{
     0%,100%{ transform:translateY(0); }
     50%{ transform:translateY(-4px); }
-  }  .alerte-plouvier{
+  }
+  .video-overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.92);
+    z-index:9999;
+    align-items:center;
+    justify-content:center;
+  }
+  .video-overlay video{
+    max-width:90vw;
+    max-height:90vh;
+  }
+  .alerte-plouvier{
     display:flex;
     align-items:center;
     gap:14px;
@@ -4728,6 +4742,24 @@ function viderSeauEau(){
   sauvegarder();
   renderSeauEau();
   afficherToast('Slip vidé.');
+  jouerVideoViderSlip();
+}
+
+function jouerVideoViderSlip(){
+  const overlay = document.getElementById('videoViderSlipOverlay');
+  const video = document.getElementById('videoViderSlipEl');
+  if(!overlay || !video) return;
+  overlay.style.display = 'flex';
+  video.currentTime = 0;
+  video.play().catch(()=>{});
+}
+
+function fermerVideoViderSlip(){
+  const overlay = document.getElementById('videoViderSlipOverlay');
+  const video = document.getElementById('videoViderSlipEl');
+  if(video) video.pause();
+  if(overlay) overlay.style.display = 'none';
+  activerOnglet('dashboard');
 }
 
 
@@ -6272,5 +6304,8 @@ activerOnglet('dashboard');
 initSync();
 </script>
 
+<div class="video-overlay" id="videoViderSlipOverlay">
+  <video id="videoViderSlipEl" src="assets/vider-slip.mp4" playsinline onended="fermerVideoViderSlip()"></video>
+</div>
 
 </body></html>
