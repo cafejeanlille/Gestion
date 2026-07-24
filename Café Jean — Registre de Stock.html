@@ -4558,10 +4558,10 @@ function afficherIdeesSocial(data){
 
   const visuelHtml = window._socialIaVisuel ? `
     <div class="recette-item" style="margin-bottom:14px; padding:14px 16px; border:1px solid var(--line); border-radius:6px; background:var(--paper-2);">
-      <div class="sub" style="margin-bottom:6px; font-weight:700;">🖼️ Pour un visuel (Story / Affiche / Publication)</div>
+      <div class="sub" style="margin-bottom:6px; font-weight:700;">🖼️ Visuel généré ci-dessus ↑ (Story / Affiche / Publication)</div>
       <div style="margin-bottom:4px;"><strong>${escapeHtml(window._socialIaVisuel.titre)}</strong></div>
       <div style="margin-bottom:10px; color:var(--ink-soft);">${escapeHtml(window._socialIaVisuel.sousTitre || '')}</div>
-      <button class="btn ghost" onclick="utiliserVisuelIA()">Utiliser pour le visuel ↑</button>
+      <button class="btn ghost" onclick="revoirVisuelIA()">Revoir le visuel ↑</button>
     </div>` : '';
 
   resultatEl.innerHTML = visuelHtml + captions.map((c, i) => `
@@ -4571,19 +4571,22 @@ function afficherIdeesSocial(data){
       <button class="btn ghost" onclick="copierTexteSocial(${i})">📋 Copier</button>
     </div>
   `).join('') + (hashtags ? `<p class="note"><strong>Hashtags suggérés :</strong> ${escapeHtml(hashtags)}</p>` : '');
+
+  appliquerVisuelIA(window._socialIaVisuel);
 }
 
-function utiliserVisuelIA(){
-  const v = window._socialIaVisuel;
+function appliquerVisuelIA(v){
   if(!v) return;
   const titreEl = document.getElementById('social-titre');
   const sousTitreEl = document.getElementById('social-sous-titre');
   if(titreEl) titreEl.value = v.titre || '';
   if(sousTitreEl) sousTitreEl.value = v.sousTitre || '';
   genererStorySocial();
+}
+
+function revoirVisuelIA(){
   const visuelTitre = document.getElementById('social-visuel-titre');
   if(visuelTitre) visuelTitre.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  afficherToast('Visuel mis à jour avec le titre proposé — choisissez le format et le modèle ci-dessus.');
 }
 
 function copierTexteSocial(index){
