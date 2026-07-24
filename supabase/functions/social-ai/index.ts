@@ -63,19 +63,37 @@ Contraintes techniques STRICTES pour visuelHtml :
   {{LARGEUR}}px et {{HAUTEUR}}px, position:relative, overflow:hidden.
 - UNIQUEMENT du style inline (attribut style="..."), JAMAIS de balise <style>, <link>,
   <script>, <img>, <iframe> — ces balises seraient supprimées et casseraient le rendu.
-- Formes décoratives en CSS pur (gradients, border-radius, clip-path, box-shadow) ou en SVG
-  inline (<svg> avec <defs>/<radialGradient>/<linearGradient> autorisés, tout doit rester
-  dans la <div> racine).
 - Polices disponibles (déjà chargées, utilise juste font-family) : 'Playfair Display' (serif
   élégant, titres) et 'Cormorant Garamond' (serif raffiné, sous-textes/détails).
 - Palette à respecter : vert émeraude ${PALETTE.emerald} (accent ${PALETTE.emeraldDark}),
   or ${PALETTE.gold}, fond sombre ${PALETTE.ink}, clair ${PALETTE.paper}. Tu peux ajuster les
-  nuances mais reste dans cette famille chaleureuse rétro.
+  nuances mais reste dans cette famille chaleureuse rétro (sauf si une DA différente est
+  fournie plus bas, auquel cas c'est elle qui prime).
 - Le nom "CAFÉ JEAN" doit apparaître quelque part, en texte stylisé (pas d'image de logo).
-- Le texte (titre, date/heure, détails) vient du brief — mets les infos concrètes données
+- Le texte (titre, date/heure, détails) vient du prompt — mets les infos concrètes données
   (date, heure, prix...) si elles sont fournies, invente une formulation sobre sinon.
-- Tout le texte doit tenir dans le cadre, sans déborder (attention aux tailles de police vs
-  la largeur/hauteur disponible).
+
+RÈGLE ANTI-CHEVAUCHEMENT (la faute la plus fréquente à éviter absolument) : ne JAMAIS
+positionner plusieurs blocs de texte avec des valeurs "top" en position:absolute devinées à
+la main — sur du texte multi-lignes, la hauteur réelle rendue ne correspond jamais à ton
+estimation et les blocs finissent chevauchés/illisibles. Structure donc TOUJOURS le HTML
+ainsi :
+1. D'abord, les éléments purement décoratifs (cadre, coins/fleurons, formes de fond, ruban
+   en arrière-plan) en position:absolute, avec z-index:0, SANS AUCUN TEXTE à l'intérieur.
+2. Ensuite, un unique conteneur de texte : position:absolute; inset:0 (ou top/left/right/
+   bottom:0); z-index:1; display:flex; flex-direction:column; align-items:center;
+   justify-content:center (ou space-evenly/space-between selon la quantité de contenu);
+   padding généreux (ex: 80px) en box-sizing:border-box; gap:24px (ou plus).
+3. Chaque ligne/bloc de texte (titre, date/heure, sous-texte...) est un enfant DIRECT de ce
+   conteneur flex, dans le flux normal (JAMAIS de position:absolute ni de "top" manuel sur du
+   texte) — le flex column les empile automatiquement sans jamais les superposer, quelle que
+   soit leur hauteur réelle.
+- Formes décoratives en CSS pur (gradients, border-radius, clip-path, box-shadow) ou en SVG
+  inline (<svg> avec <defs>/<radialGradient>/<linearGradient> autorisés, tout doit rester
+  dans la <div> racine, toujours en arrière-plan derrière le conteneur de texte).
+- Tout le texte doit tenir dans le cadre, sans déborder (choisis des tailles de police
+  raisonnables vu la quantité de texte et l'espace disponible ; réduis la taille plutôt que
+  de risquer un débordement ou un chevauchement).
 
 Réponds UNIQUEMENT avec un JSON strict, sans texte autour, de cette forme exacte :
 {"captions":[{"style":"Version 1","texte":"..."},{"style":"Version 2","texte":"..."},{"style":"Version 3","texte":"..."}],"hashtags":["#..."],"visuelHtml":"<div style=\\"...\\">...</div>"}
