@@ -2888,17 +2888,6 @@
     </div>
 
     <div class="card">
-      <h2>🎨 Notre direction artistique (DA)</h2>
-      <p class="note">Décrivez ici le style à suivre pour tout ce que vous publiez (couleurs, ambiance, typographie, ton). Ça sert de rappel pour vous et c'est aussi transmis à l'Assistant IA pour que les textes générés restent cohérents avec votre identité.</p>
-      <div class="form-grid">
-        <div style="grid-column:1/-1;">
-          <label for="social-da">Direction artistique</label>
-          <textarea id="social-da" rows="3" placeholder="Ex : vert émeraude et or, ambiance rétro-chic années 50, typographie serif élégante, photos chaleureuses et conviviales, ton complice et local, jamais trop léché" oninput="sauvegarderDA()"></textarea>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
       <h2>📅 Programme du mois</h2>
       <p class="note">Ajoutez vos événements du mois (concerts, brunchs, soirées...) puis générez une affiche qui les liste tous, avec la DA du Café Jean.</p>
       <div class="form-grid">
@@ -2932,15 +2921,11 @@
 
     <div class="card">
       <h2>🤖 Assistant IA — idées de publication</h2>
-      <p class="note">Décrivez en quelques mots ce que vous voulez publier (nouveau produit, événement, happy hour...). L'IA propose plusieurs légendes et des hashtags — vous copiez celle qui vous plaît et publiez vous-même sur Instagram/Facebook. Rien n'est publié automatiquement.</p>
+      <p class="note">Écrivez vous-même le prompt complet : l'événement ou le produit, le ton, votre histoire ou votre identité si besoin. L'IA en tire plusieurs légendes + un visuel — vous copiez ce qui vous plaît et publiez vous-même sur Instagram/Facebook. Rien n'est publié automatiquement.</p>
       <div class="form-grid">
         <div style="grid-column:1/-1;">
-          <label for="social-ia-brief">Ce que vous voulez publier</label>
-          <textarea id="social-ia-brief" rows="3" placeholder="Ex : nouvelle bière artisanale Norsse IPA disponible dès ce soir, happy hour de 17h à 19h"></textarea>
-        </div>
-        <div style="grid-column:1/-1;">
-          <label for="social-ia-contexte">Contexte pour l'IA — histoire, ambiance du café (optionnel, à remplir une fois)</label>
-          <textarea id="social-ia-contexte" rows="2" placeholder="Ex : café-bar ouvert en 2020 dans le Vieux-Lille, ambiance rétro chaleureuse, clientèle d'habitués" oninput="sauvegarderContexteIA()"></textarea>
+          <label for="social-ia-prompt">Votre prompt</label>
+          <textarea id="social-ia-prompt" rows="6" placeholder="Ex : Soirée jazz manouche vendredi 26 juillet à 20h30, 10€ l'entrée, buffet à l'entracte. Café Jean existe depuis 1923 à Wazemmes (Lille), ambiance rétro chaleureuse, jamais trop léché. Ton familier, pas pub du tout." oninput="sauvegarderPromptSocial()"></textarea>
         </div>
       </div>
       <div class="comptage-actions-bar" style="margin-top:14px;">
@@ -3302,6 +3287,7 @@ function dataParDefaut(){
     photosEtablissement: [],
     aProposCafe: '',
     daDescription: '',
+    promptSocialLibre: '',
     tauxChargesVariables: 27,
     chargesFixes: [
       {label:'Loyer', montant:0},
@@ -3431,10 +3417,12 @@ function activerOnglet(tab){
     dessinerAfficheProgramme();
     renderGaleriePhotosEtablissement();
     renderEvenementsMois();
-    const contexteEl = document.getElementById('social-ia-contexte');
-    if(contexteEl) contexteEl.value = DATA.aProposCafe || '';
-    const daEl = document.getElementById('social-da');
-    if(daEl) daEl.value = DATA.daDescription || '';
+    if(!DATA.promptSocialLibre && (DATA.aProposCafe || DATA.daDescription)){
+      DATA.promptSocialLibre = [DATA.daDescription, DATA.aProposCafe].filter(Boolean).join('\n\n');
+      sauvegarder();
+    }
+    const promptEl = document.getElementById('social-ia-prompt');
+    if(promptEl) promptEl.value = DATA.promptSocialLibre || '';
   }
 }
 
@@ -4417,27 +4405,17 @@ function genererAfficheProgramme(){
 }
 
 /* ============ ASSISTANT IA — IDÉES DE PUBLICATION ============ */
-function sauvegarderContexteIA(){
-  const el = document.getElementById('social-ia-contexte');
-  DATA.aProposCafe = el ? el.value : '';
-  sauvegarder();
-}
-
-function sauvegarderDA(){
-  const el = document.getElementById('social-da');
-  DATA.daDescription = el ? el.value : '';
+function sauvegarderPromptSocial(){
+  const el = document.getElementById('social-ia-prompt');
+  DATA.promptSocialLibre = el ? el.value : '';
   sauvegarder();
 }
 
 async function genererIdeesSocial(){
-  const briefEl = document.getElementById('social-ia-brief');
-  const contexteEl = document.getElementById('social-ia-contexte');
-  const daEl = document.getElementById('social-da');
+  const promptEl = document.getElementById('social-ia-prompt');
   const btn = document.getElementById('social-ia-btn');
   const resultatEl = document.getElementById('social-ia-resultat');
-  const brief = (briefEl.value || '').trim();
-  const contexte = (contexteEl && contexteEl.value || '').trim();
-  const da = (daEl && daEl.value || '').trim();
+  const brief = (promptEl.value || '').trim();
   if(!brief){
     afficherToast('Décrivez ce que vous voulez publier.');
     return;
@@ -4449,7 +4427,7 @@ async function genererIdeesSocial(){
   try{
     const res = await supabaseFetch('/functions/v1/social-ai', {
       method: 'POST',
-      body: JSON.stringify({ brief, contexte, da, format: posterState.format })
+      body: JSON.stringify({ brief, format: posterState.format })
     });
     const data = await res.json();
     if(!res.ok || !data.ok) throw new Error(data.error || 'Erreur inconnue.');
