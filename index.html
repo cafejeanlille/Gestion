@@ -4589,6 +4589,7 @@ function afficherIdeesSocial(data){
 
 function appliquerVisuelIA(v){
   if(!v) return;
+  choisirFormatSocial('publication');
   const titreEl = document.getElementById('social-titre');
   const sousTitreEl = document.getElementById('social-sous-titre');
   if(titreEl) titreEl.value = v.titre || '';
