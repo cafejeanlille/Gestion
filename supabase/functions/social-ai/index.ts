@@ -73,6 +73,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
     const brief = typeof body.brief === 'string' ? body.brief.trim() : '';
     const contexte = typeof body.contexte === 'string' ? body.contexte.trim() : '';
+    const da = typeof body.da === 'string' ? body.da.trim() : '';
     if (!brief) {
       return jsonResponse({ ok: false, error: 'Merci de decrire ce que vous voulez publier.' }, 400);
     }
@@ -82,10 +83,17 @@ Deno.serve(async (req: Request) => {
     if (contexte.length > 1000) {
       return jsonResponse({ ok: false, error: 'Contexte trop long (max 1000 caracteres).' }, 400);
     }
+    if (da.length > 1000) {
+      return jsonResponse({ ok: false, error: 'Description de la DA trop longue (max 1000 caracteres).' }, 400);
+    }
 
-    const systemPrompt = contexte
-      ? `${SYSTEM_PROMPT}\n\nContexte sur le café (à utiliser pour rester fidèle à son identité, sans le réciter mot pour mot) :\n${contexte}`
-      : SYSTEM_PROMPT;
+    let systemPrompt = SYSTEM_PROMPT;
+    if (da) {
+      systemPrompt += `\n\nDirection artistique / ton à respecter (donnée par le café) :\n${da}`;
+    }
+    if (contexte) {
+      systemPrompt += `\n\nContexte sur le café (à utiliser pour rester fidèle à son identité, sans le réciter mot pour mot) :\n${contexte}`;
+    }
 
     const mistralRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
