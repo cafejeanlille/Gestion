@@ -193,7 +193,7 @@
     text-transform:uppercase;
     letter-spacing:0.3px;
   }
-  input, select{
+  input, select, textarea{
     width:100%;
     padding:9px 10px;
     border:1px solid var(--line);
@@ -203,11 +203,12 @@
     color:var(--ink);
     font-family:inherit;
   }
-  input:focus, select:focus{
+  input:focus, select:focus, textarea:focus{
     outline:2px solid var(--emerald);
     outline-offset:1px;
     background:var(--white);
   }
+  textarea{ resize:vertical; }
   input[type="number"].qty-input{
     font-family:'SF Mono','Consolas',monospace;
   }
@@ -2895,6 +2896,21 @@
         </div>
       </div>
     </div>
+
+    <div class="card">
+      <h2>🤖 Assistant IA — idées de publication</h2>
+      <p class="note">Décrivez en quelques mots ce que vous voulez publier (nouveau produit, événement, happy hour...). L'IA propose plusieurs légendes et des hashtags — vous copiez celle qui vous plaît et publiez vous-même sur Instagram/Facebook. Rien n'est publié automatiquement.</p>
+      <div class="form-grid">
+        <div style="grid-column:1/-1;">
+          <label for="social-ia-brief">Ce que vous voulez publier</label>
+          <textarea id="social-ia-brief" rows="3" placeholder="Ex : nouvelle bière artisanale Norsse IPA disponible dès ce soir, happy hour de 17h à 19h"></textarea>
+        </div>
+      </div>
+      <div class="comptage-actions-bar" style="margin-top:14px;">
+        <button class="btn" id="social-ia-btn" onclick="genererIdeesSocial()">✨ Générer des idées</button>
+      </div>
+      <div id="social-ia-resultat" style="margin-top:16px;"></div>
+    </div>
   </section>
 
   <!-- TAB: SAUVEGARDE -->
@@ -4196,6 +4212,62 @@ function telechargerStorySocial(){
   }, 'image/png');
 }
 
+/* ============ ASSISTANT IA — IDÉES DE PUBLICATION ============ */
+async function genererIdeesSocial(){
+  const briefEl = document.getElementById('social-ia-brief');
+  const btn = document.getElementById('social-ia-btn');
+  const resultatEl = document.getElementById('social-ia-resultat');
+  const brief = (briefEl.value || '').trim();
+  if(!brief){
+    afficherToast('Décrivez ce que vous voulez publier.');
+    return;
+  }
+  btn.disabled = true;
+  const texteOriginal = btn.textContent;
+  btn.textContent = '⏳ Génération...';
+  resultatEl.innerHTML = '';
+  try{
+    const res = await supabaseFetch('/functions/v1/social-ai', {
+      method: 'POST',
+      body: JSON.stringify({ brief })
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.error || 'Erreur inconnue.');
+    afficherIdeesSocial(data);
+  }catch(err){
+    resultatEl.innerHTML = `<p class="note" style="color:var(--rust);">⚠ ${escapeHtml(err.message || 'Erreur lors de la génération.')}</p>`;
+  }finally{
+    btn.disabled = false;
+    btn.textContent = texteOriginal;
+  }
+}
+
+function afficherIdeesSocial(data){
+  const resultatEl = document.getElementById('social-ia-resultat');
+  const captions = Array.isArray(data.captions) ? data.captions : [];
+  const hashtags = Array.isArray(data.hashtags) ? data.hashtags.join(' ') : '';
+  if(captions.length === 0){
+    resultatEl.innerHTML = '<p class="note">Aucune proposition générée.</p>';
+    return;
+  }
+  window._socialIaCaptions = captions.map(c => (c.texte || '') + (hashtags ? '\n\n' + hashtags : ''));
+  resultatEl.innerHTML = captions.map((c, i) => `
+    <div class="recette-item" style="margin-bottom:10px; padding:14px 16px; border:1px solid var(--line); border-radius:6px;">
+      <div class="sub" style="margin-bottom:6px; font-weight:700;">${escapeHtml(c.style || 'Proposition ' + (i+1))}</div>
+      <div style="white-space:pre-wrap; margin-bottom:10px;">${escapeHtml(c.texte || '')}</div>
+      <button class="btn ghost" onclick="copierTexteSocial(${i})">📋 Copier</button>
+    </div>
+  `).join('') + (hashtags ? `<p class="note"><strong>Hashtags suggérés :</strong> ${escapeHtml(hashtags)}</p>` : '');
+}
+
+function copierTexteSocial(index){
+  const texte = (window._socialIaCaptions || [])[index] || '';
+  navigator.clipboard.writeText(texte).then(()=>{
+    afficherToast('Texte copié !');
+  }).catch(()=>{
+    afficherToast('Impossible de copier automatiquement — sélectionnez le texte manuellement.');
+  });
+}
 
 function modifierTauxChargesVariables(valeur){
   DATA.tauxChargesVariables = parseFloat(valeur) || 0;
