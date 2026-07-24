@@ -133,9 +133,6 @@ Deno.serve(async (req: Request) => {
     if (brief.length > 1000) {
       return jsonResponse({ ok: false, error: 'Description trop longue (max 1000 caracteres).' }, 400);
     }
-    if (contexte.length > 1000 || da.length > 1000) {
-      return jsonResponse({ ok: false, error: 'Contexte ou DA trop long (max 1000 caracteres).' }, 400);
-    }
 
     let systemPrompt = SYSTEM_PROMPT.replace('{{LARGEUR}}', String(w)).replace('{{HAUTEUR}}', String(h));
     if (da) {
