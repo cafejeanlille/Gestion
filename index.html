@@ -4834,7 +4834,6 @@ function afficherIdeesSocial(data){
 
   resultatEl.innerHTML = visuelNote + captions.map((c, i) => `
     <div class="recette-item" style="margin-bottom:10px; padding:14px 16px; border:1px solid var(--line); border-radius:6px;">
-      <div class="sub" style="margin-bottom:6px; font-weight:700;">${escapeHtml(c.style || 'Proposition ' + (i+1))}</div>
       <div style="white-space:pre-wrap; margin-bottom:10px;">${escapeHtml(c.texte || '')}</div>
       <button class="btn ghost" onclick="copierTexteSocial(${i})">📋 Copier</button>
     </div>

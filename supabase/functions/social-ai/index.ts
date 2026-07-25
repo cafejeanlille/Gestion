@@ -140,8 +140,8 @@ ainsi :
   de risquer un débordement ou un chevauchement).
 
 Réponds UNIQUEMENT avec un JSON strict, sans texte autour, de cette forme exacte (un seul
-élément dans "captions", jamais plusieurs) :
-{"captions":[{"style":"Légende","texte":"..."}],"hashtags":["#..."],"visuelHtml":"<div style=\\"...\\">...</div>"}
+élément dans "captions", jamais plusieurs — et pas de champ "style", juste le texte brut) :
+{"captions":[{"texte":"..."}],"hashtags":["#..."],"visuelHtml":"<div style=\\"...\\">...</div>"}
 Le tableau hashtags peut être vide ([]) si ça ne sonne pas naturel d'en mettre.
 Le HTML dans visuelHtml doit être une chaîne JSON valide (guillemets internes échappés).`;
 
@@ -232,7 +232,7 @@ Deno.serve(async (req: Request) => {
       const jsonMatch = texte.match(/\{[\s\S]*\}/);
       resultat = JSON.parse(jsonMatch ? jsonMatch[0] : texte);
     } catch {
-      resultat = { captions: [{ style: 'Proposition', texte }], hashtags: [] };
+      resultat = { captions: [{ texte }], hashtags: [] };
     }
 
     if (typeof resultat.visuelHtml === 'string') {
