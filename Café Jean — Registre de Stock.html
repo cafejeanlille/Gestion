@@ -1740,6 +1740,50 @@
     </div>
 
     <div class="card">
+      <h2>Alcool au verre</h2>
+      <p class="sub">Pour les bouteilles d'alcool fort (catégorie "Alcool bouteille") vendues au verre/à la dose (perte de 8% par défaut).</p>
+      <div class="form-grid" style="margin-bottom:14px;">
+        <div>
+          <label for="alcool-produit">Produit (alcool bouteille)</label>
+          <select id="alcool-produit" onchange="chargerAlcoolPourProduit()"><option value="">— Sélectionnez un produit —</option></select>
+        </div>
+        <div>
+          <label for="alcool-volume">Volume bouteille (cl)</label>
+          <input type="number" id="alcool-volume" min="0" step="1" class="qty-input" placeholder="70" oninput="majCalculAlcool()">
+        </div>
+        <div>
+          <label for="alcool-dose">Volume du verre/dose (cl)</label>
+          <input type="number" id="alcool-dose" min="0" step="0.5" class="qty-input" placeholder="5" oninput="majCalculAlcool()">
+        </div>
+        <div>
+          <label for="alcool-perte">Perte (%)</label>
+          <input type="number" id="alcool-perte" min="0" max="100" step="0.1" class="qty-input" value="8" oninput="majCalculAlcool()">
+        </div>
+        <div>
+          <label for="alcool-vente-dose">Prix de vente du verre/dose (€)</label>
+          <input type="number" id="alcool-vente-dose" min="0" step="0.01" class="qty-input" placeholder="0.00" oninput="majCalculAlcool()">
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="label">Coût par cl (perte incluse)</div>
+          <div class="value" id="alcool-cout-cl">—</div>
+        </div>
+        <div class="stat-box accent">
+          <div class="label" id="alcool-label-dose">Verre/dose — coût / marge</div>
+          <div class="value" id="alcool-cout-dose">—</div>
+          <div class="stat-sub" id="alcool-marge-dose">—</div>
+        </div>
+        <div class="stat-box accent">
+          <div class="label" id="alcool-label-bouteille">Bouteille entière — coût / marge</div>
+          <div class="value" id="alcool-cout-bouteille">—</div>
+          <div class="stat-sub" id="alcool-marge-bouteille">—</div>
+        </div>
+      </div>
+      <p class="note">Le prix d'achat utilisé est celui de la bouteille (colonne "Prix d'achat" du stock). Pour la bouteille entière, le prix de vente utilisé est celui de la colonne "Prix de vente" du stock, sans perte appliquée. La marge par verre/dose et par bouteille calculée ici s'affiche aussi en direct dans le tableau "Stock actuel" ci-dessous.</p>
+    </div>
+
+    <div class="card">
       <h2>Stock actuel</h2>
       <div id="stock-table-wrap"><table>
     <thead><tr>
@@ -3806,6 +3850,100 @@ function majCalculVin(){
   }
 }
 
+/* ---- Alcool au verre (dose variable selon le produit, perte 8% par défaut) ---- */
+function renderAlcoolSelect(){
+  const sel = document.getElementById('alcool-produit');
+  if(!sel) return;
+  const valeurActuelle = sel.value;
+  const produitsAlcool = DATA.produits.filter(p => p.categorie === 'Alcool bouteille');
+  sel.innerHTML = '<option value="">— Sélectionnez un produit —</option>' +
+    produitsAlcool.map(p => `<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('');
+  if(valeurActuelle && produitsAlcool.some(p => p.id === valeurActuelle)) sel.value = valeurActuelle;
+}
+
+function chargerAlcoolPourProduit(){
+  const id = document.getElementById('alcool-produit').value;
+  const p = DATA.produits.find(x => x.id === id);
+  DATA.alcoolsVerre = DATA.alcoolsVerre || {};
+  const volumeEl = document.getElementById('alcool-volume');
+  const doseEl = document.getElementById('alcool-dose');
+  const perteEl = document.getElementById('alcool-perte');
+  const venteEl = document.getElementById('alcool-vente-dose');
+  if(!id || !p){
+    volumeEl.value = ''; doseEl.value = ''; perteEl.value = '8'; venteEl.value = '';
+    majCalculAlcool();
+    return;
+  }
+  const etat = DATA.alcoolsVerre[id];
+  if(etat){
+    volumeEl.value = etat.volumeCl || 70;
+    doseEl.value = etat.doseCl || 5;
+    perteEl.value = etat.pertePct != null ? etat.pertePct : 8;
+    venteEl.value = etat.prixVenteDose || '';
+  }else{
+    volumeEl.value = 70; doseEl.value = 5; perteEl.value = 8; venteEl.value = '';
+  }
+  majCalculAlcool();
+}
+
+function majCalculAlcool(){
+  const id = document.getElementById('alcool-produit').value;
+  const p = DATA.produits.find(x => x.id === id);
+  const volume = parseFloat(document.getElementById('alcool-volume').value) || 0;
+  const dose = parseFloat(document.getElementById('alcool-dose').value) || 0;
+  const perte = parseFloat(document.getElementById('alcool-perte').value) || 0;
+  const prixVenteDose = parseFloat(document.getElementById('alcool-vente-dose').value) || 0;
+  const prixAchatBouteille = p ? (p.prixAchat || 0) : 0;
+  const prixVenteBouteille = p ? (p.prixVente || 0) : 0;
+
+  if(id){
+    DATA.alcoolsVerre = DATA.alcoolsVerre || {};
+    DATA.alcoolsVerre[id] = { volumeCl: volume, doseCl: dose, pertePct: perte, prixVenteDose: prixVenteDose };
+    sauvegarder();
+    renderStockTable();
+  }
+
+  const volumeUtileCl = volume * (1 - perte / 100);
+  const coutParCl = volumeUtileCl > 0 ? prixAchatBouteille / volumeUtileCl : 0;
+  const coutDose = coutParCl * dose;
+  const coutClEl = document.getElementById('alcool-cout-cl');
+  const coutDoseEl = document.getElementById('alcool-cout-dose');
+  const margeDoseEl = document.getElementById('alcool-marge-dose');
+  const labelDoseEl = document.getElementById('alcool-label-dose');
+  if(labelDoseEl) labelDoseEl.textContent = dose > 0 ? `Verre ${dose}cl — coût / marge` : 'Verre/dose — coût / marge';
+  if(coutClEl) coutClEl.textContent = coutParCl > 0 ? formatEuro(coutParCl) : '—';
+  if(coutDoseEl) coutDoseEl.textContent = coutParCl > 0 ? formatEuro(coutDose) : '—';
+  if(margeDoseEl){
+    if(coutParCl > 0 && prixVenteDose > 0){
+      const marge = prixVenteDose - coutDose;
+      const margePct = prixVenteDose > 0 ? (marge / prixVenteDose) * 100 : 0;
+      margeDoseEl.textContent = `Marge : ${formatEuro(marge)} (${formatPct(margePct)})`;
+    }else if(!p){
+      margeDoseEl.textContent = 'Sélectionnez un produit';
+    }else{
+      margeDoseEl.textContent = "Renseignez le prix d'achat de la bouteille et le prix de vente";
+    }
+  }
+
+  // Bouteille vendue entière et directement : pas de perte (contrairement au service au verre).
+  const labelBouteilleEl = document.getElementById('alcool-label-bouteille');
+  const coutBouteilleEl = document.getElementById('alcool-cout-bouteille');
+  const margeBouteilleEl = document.getElementById('alcool-marge-bouteille');
+  if(labelBouteilleEl) labelBouteilleEl.textContent = volume > 0 ? `Bouteille ${volume}cl — coût / marge` : 'Bouteille entière — coût / marge';
+  if(coutBouteilleEl) coutBouteilleEl.textContent = prixAchatBouteille > 0 ? formatEuro(prixAchatBouteille) : '—';
+  if(margeBouteilleEl){
+    if(prixAchatBouteille > 0 && prixVenteBouteille > 0){
+      const margeB = prixVenteBouteille - prixAchatBouteille;
+      const margeBPct = prixVenteBouteille > 0 ? (margeB / prixVenteBouteille) * 100 : 0;
+      margeBouteilleEl.textContent = `Marge : ${formatEuro(margeB)} (${formatPct(margeBPct)})`;
+    }else if(!p){
+      margeBouteilleEl.textContent = 'Sélectionnez un produit';
+    }else{
+      margeBouteilleEl.textContent = "Renseignez le prix d'achat et le prix de vente de la bouteille";
+    }
+  }
+}
+
 function margeVerreProduit(p){
   // Calcule la/les marge(s) au verre en direct pour un produit du stock,
   // en tenant compte des pertes (fût de bière 10% par défaut, vin 5% par défaut).
@@ -3841,6 +3979,22 @@ function margeVerreProduit(p){
     const lignes = [ligne12, ligneBouteille].filter(Boolean);
     return { type: 'vin', texte: lignes.length ? lignes.join(' · ') : '—' };
   }
+  const alcool = DATA.alcoolsVerre && DATA.alcoolsVerre[p.id];
+  if(alcool && alcool.volumeCl > 0 && alcool.doseCl > 0){
+    const volumeUtileCl = alcool.volumeCl * (1 - (alcool.pertePct || 0) / 100);
+    const coutParCl = volumeUtileCl > 0 ? (p.prixAchat || 0) / volumeUtileCl : 0;
+    const coutDose = coutParCl * alcool.doseCl;
+    const ligneDose = alcool.prixVenteDose > 0
+      ? `Verre ${alcool.doseCl}cl : ${formatEuro(alcool.prixVenteDose - coutDose)}`
+      : (coutParCl > 0 ? `Verre ${alcool.doseCl}cl : coût ${formatEuro(coutDose)}` : null);
+    // Bouteille vendue entière et directement : pas de perte appliquée.
+    const coutBouteille = p.prixAchat || 0;
+    const ligneBouteille = (coutBouteille > 0 && p.prixVente > 0)
+      ? `Bouteille ${alcool.volumeCl}cl : ${formatEuro(p.prixVente - coutBouteille)}`
+      : null;
+    const lignes = [ligneDose, ligneBouteille].filter(Boolean);
+    return { type: 'alcool', texte: lignes.length ? lignes.join(' · ') : '—' };
+  }
   return null;
 }
 
@@ -3863,6 +4017,7 @@ function renderStockTable(){
   appliquerVisibiliteImportStock();
   renderFutSelect();
   renderVinSelect();
+  renderAlcoolSelect();
   const wrap = document.getElementById('stock-table-wrap');
   if(DATA.produits.length === 0){
     wrap.innerHTML = `<div class="empty-state"><div class="display">Aucun produit pour l'instant</div>Ajoutez votre premier produit ci-dessus.</div>`;
@@ -3884,8 +4039,8 @@ function renderStockTable(){
     const margeVerre = margeVerreProduit(p);
     let margeCell;
     if(margeVerre){
-      const icone = margeVerre.type === 'fut' ? '🍺' : '🍷';
-      const fond = margeVerre.type === 'fut' ? '#EFE3C7' : '#F1E0D8';
+      const icone = margeVerre.type === 'fut' ? '🍺' : (margeVerre.type === 'alcool' ? '🥃' : '🍷');
+      const fond = margeVerre.type === 'fut' ? '#EFE3C7' : (margeVerre.type === 'alcool' ? '#EFD9B4' : '#F1E0D8');
       margeCell = `<span class="badge" style="white-space:normal;background:${fond};color:var(--ink);">${icone} ${escapeHtml(margeVerre.texte)}</span>`;
     }else{
       const margeSimple = (p.prixVente || 0) - (p.prixAchat || 0);
