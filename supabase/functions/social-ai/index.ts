@@ -79,21 +79,33 @@ Contraintes techniques STRICTES pour visuelHtml :
 - Le texte (titre, date/heure, détails) vient du prompt — mets les infos concrètes données
   (date, heure, prix...) si elles sont fournies, invente une formulation sobre sinon.
 
-Vocabulaire visuel vintage à ta disposition (pioche librement, sans obligation de tout
-utiliser) pour obtenir un rendu soigné, du niveau d'un carton d'invitation imprimé :
-- Kicker en haut : petite ligne majuscule très espacée encadrée de losanges/étoiles (ex:
-  "◆ WAZEMMES · LILLE ◆"), avec une accroche en italique doré juste en dessous (ex: "depuis
-  1923"), le tout flanqué de fines lignes horizontales de chaque côté.
-- Séparateurs en pointillés avec un petit cercle creux à chaque extrémité (border-top:1px
-  dashed + deux <div> ronds de ~14px aux deux bouts), pour scander les sections.
-- Labels techniques (DATE, HORAIRE, LIEU...) en majuscules, petite taille, letter-spacing
-  large (3-4px), couleur plus discrète que le contenu qu'ils annoncent.
-- Fleurons/laurier en SVG (traits fins, style gravure) pour encadrer un mot-clé ou séparer
-  des blocs, plutôt que des formes pleines.
-- Beaucoup d'espace négatif : ne remplis pas tout le cadre, un visuel épuré avec de l'air
-  autour du texte est plus élégant qu'un visuel dense.
-- Un petit pied de page discret en bas (compte Instagram, adresse) séparé du contenu principal
-  par une fine ligne, façon carton d'invitation.
+MODÈLE DE RÉFÉRENCE À SUIVRE PAR DÉFAUT (ce gabarit a fait ses preuves — garde cette
+structure à chaque génération, en adaptant seulement les mots et éventuellement la palette
+si une DA différente est fournie plus bas) :
+1. Fond : dégradé de rayons façon soleil levant (sunburst) en CSS pur (conic-gradient
+   centré, ou plusieurs <div> triangulaires en repeating-linear-gradient), alternant deux
+   nuances proches de la couleur de fond principale (ex: vert émeraude et une nuance
+   légèrement plus claire/sombre), partant du centre vers les bords. Purement décoratif,
+   z-index:0, sans texte.
+2. Un double cadre fin doré (une bordure extérieure ~2px, une bordure intérieure quelques
+   pixels plus loin), avec un petit angle décoratif doré dans chacun des 4 coins (deux
+   traits fins formant un angle droit, façon coin de cadre ancien). Décoratif, z-index:0.
+3. Conteneur de texte flex (voir RÈGLE ANTI-CHEVAUCHEMENT plus bas) avec, dans l'ordre,
+   en enfants directs :
+   a. Le logo ({{LOGO_CAFE_JEAN}} dans une <div> ~180-220px de large) ou "CAFÉ JEAN" stylisé.
+   b. Un kicker tout en majuscules, très espacé, petite taille (ex: "WAZEMMES · LILLE ·
+      DEPUIS 1923"), puis un petit séparateur (deux traits fins encadrant un losange/point).
+   c. Le titre en deux temps : une courte ligne annonçant le type d'événement en majuscules
+      espacées, taille moyenne (ex: "SOIRÉE"), puis le mot-clé principal en très grand, gras,
+      couleur or, avec un léger drop-shadow sombre pour le détacher du fond.
+   d. Un sous-texte court en italique (une à deux lignes), ton chaleureux et personnel.
+   e. Un bandeau/ruban doré plein (extrémités coupées en pointe via clip-path — PAS de
+      transform:rotate) contenant la date/l'heure en gras, texte sombre sur fond doré.
+   f. L'adresse, puis un pied de page discret avec le compte Instagram (ex:
+      "@cafejeanlille"), séparé par un espace généreux.
+Cette structure verticale (logo → kicker → titre → sous-texte → bandeau date → adresse →
+compte) reste la même à chaque fois ; seuls les mots, le sujet visuel du sunburst et
+éventuellement la palette changent selon l'événement et la DA fournie.
 
 RÈGLE ANTI-CHEVAUCHEMENT (la faute la plus fréquente à éviter absolument) : ne JAMAIS
 positionner plusieurs blocs de texte avec des valeurs "top" en position:absolute devinées à
