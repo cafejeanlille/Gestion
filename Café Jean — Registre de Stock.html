@@ -264,6 +264,17 @@
     vertical-align:middle;
   }
   table td.num, table th.num{ text-align:right; }
+  tr.categorie-row td{
+    background:var(--paper-2);
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    font-size:12px;
+    color:var(--ink-soft);
+    padding:9px 8px;
+    border-top:2px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
   .charge-label-input{
     width:100%;
     font-family:inherit;
@@ -1610,6 +1621,20 @@
           <input type="number" id="p-vente" min="0" step="0.01" class="qty-input" placeholder="0.00">
         </div>
         <div>
+          <label for="p-categorie">Catégorie</label>
+          <select id="p-categorie">
+            <option value="Soda">Soda</option>
+            <option value="Jus de fruit">Jus de fruit</option>
+            <option value="Bières bouteille">Bières bouteille</option>
+            <option value="Kombucha bouteille">Kombucha bouteille</option>
+            <option value="Alcool bouteille">Alcool bouteille</option>
+            <option value="Sirop">Sirop</option>
+            <option value="Fût de bières">Fût de bières</option>
+            <option value="Vin">Vin</option>
+            <option value="Autre" selected>Autre</option>
+          </select>
+        </div>
+        <div>
           <button class="btn" onclick="ajouterProduit()">Ajouter au stock</button>
         </div>
       </div>
@@ -1705,8 +1730,13 @@
           <div class="value" id="vin-cout-12">—</div>
           <div class="stat-sub" id="vin-marge-12">—</div>
         </div>
+        <div class="stat-box accent">
+          <div class="label" id="vin-label-bouteille">Bouteille entière — coût / marge</div>
+          <div class="value" id="vin-cout-bouteille">—</div>
+          <div class="stat-sub" id="vin-marge-bouteille">—</div>
+        </div>
       </div>
-      <p class="note">Le prix d'achat utilisé est celui de la bouteille (colonne "Prix d'achat" du stock). La marge par verre calculée ici s'affiche aussi en direct dans le tableau "Stock actuel" ci-dessous.</p>
+      <p class="note">Le prix d'achat utilisé est celui de la bouteille (colonne "Prix d'achat" du stock). Pour la bouteille entière, le prix de vente utilisé est celui de la colonne "Prix de vente" du stock, sans perte appliquée (contrairement au service au verre). La marge par verre et par bouteille calculée ici s'affiche aussi en direct dans le tableau "Stock actuel" ci-dessous.</p>
     </div>
 
     <div class="card">
@@ -3512,6 +3542,8 @@ function ajouterProduit(){
   const qte = parseFloat(document.getElementById('p-qte').value);
   const achat = parseFloat(document.getElementById('p-achat').value);
   const vente = parseFloat(document.getElementById('p-vente').value);
+  const categorieEl = document.getElementById('p-categorie');
+  const categorie = categorieEl && CATEGORIES_PRODUIT.includes(categorieEl.value) ? categorieEl.value : 'Autre';
 
   if(!nom){ afficherToast('Donnez un nom au produit.'); return; }
   if(isNaN(qte) || qte < 0){ afficherToast('Quantité invalide.'); return; }
@@ -3523,7 +3555,8 @@ function ajouterProduit(){
     nom: nom,
     quantite: qte,
     prixAchat: achat,
-    prixVente: vente
+    prixVente: vente,
+    categorie: categorie
   });
   sauvegarder();
   document.getElementById('p-nom').value = '';
@@ -3552,11 +3585,14 @@ function modifierProduit(id, champ, valeur){
   if(!p) return;
   if(champ === 'nom'){
     p.nom = valeur.trim() || p.nom;
+  }else if(champ === 'categorie'){
+    p.categorie = CATEGORIES_PRODUIT.includes(valeur) ? valeur : 'Autre';
   }else{
     const n = parseFloat(valeur);
     if(!isNaN(n) && n >= 0) p[champ] = n;
   }
   sauvegarder();
+  if(champ === 'categorie') renderStockTable();
 }
 
 function appliquerVisibiliteImportStock(){
@@ -3722,6 +3758,7 @@ function majCalculVin(){
   const perte = parseFloat(document.getElementById('vin-perte').value) || 0;
   const prixVente = parseFloat(document.getElementById('vin-vente-12').value) || 0;
   const prixAchatBouteille = p ? (p.prixAchat || 0) : 0;
+  const prixVenteBouteille = p ? (p.prixVente || 0) : 0;
 
   if(id){
     DATA.vinsVerre = DATA.vinsVerre || {};
@@ -3747,6 +3784,24 @@ function majCalculVin(){
       marge12El.textContent = 'Sélectionnez un produit';
     }else{
       marge12El.textContent = "Renseignez le prix d'achat de la bouteille et le prix de vente";
+    }
+  }
+
+  // Bouteille vendue entière et directement : pas de perte (contrairement au service au verre).
+  const labelBouteilleEl = document.getElementById('vin-label-bouteille');
+  const coutBouteilleEl = document.getElementById('vin-cout-bouteille');
+  const margeBouteilleEl = document.getElementById('vin-marge-bouteille');
+  if(labelBouteilleEl) labelBouteilleEl.textContent = volume > 0 ? `Bouteille ${volume}cl — coût / marge` : 'Bouteille entière — coût / marge';
+  if(coutBouteilleEl) coutBouteilleEl.textContent = prixAchatBouteille > 0 ? formatEuro(prixAchatBouteille) : '—';
+  if(margeBouteilleEl){
+    if(prixAchatBouteille > 0 && prixVenteBouteille > 0){
+      const margeB = prixVenteBouteille - prixAchatBouteille;
+      const margeBPct = prixVenteBouteille > 0 ? (margeB / prixVenteBouteille) * 100 : 0;
+      margeBouteilleEl.textContent = `Marge : ${formatEuro(margeB)} (${formatPct(margeBPct)})`;
+    }else if(!p){
+      margeBouteilleEl.textContent = 'Sélectionnez un produit';
+    }else{
+      margeBouteilleEl.textContent = "Renseignez le prix d'achat et le prix de vente de la bouteille";
     }
   }
 }
@@ -3775,13 +3830,33 @@ function margeVerreProduit(p){
     const volumeUtileCl = vin.volumeCl * (1 - (vin.pertePct || 0) / 100);
     const coutParCl = volumeUtileCl > 0 ? (p.prixAchat || 0) / volumeUtileCl : 0;
     const cout12 = coutParCl * 12;
-    if(vin.prixVerre12 > 0){
-      const marge = vin.prixVerre12 - cout12;
-      return { type: 'vin', texte: `Verre 12cl : ${formatEuro(marge)}` };
-    }
-    return { type: 'vin', texte: coutParCl > 0 ? `Verre 12cl : coût ${formatEuro(cout12)}` : '—' };
+    const ligne12 = vin.prixVerre12 > 0
+      ? `Verre 12cl : ${formatEuro(vin.prixVerre12 - cout12)}`
+      : (coutParCl > 0 ? `Verre 12cl : coût ${formatEuro(cout12)}` : null);
+    // Bouteille vendue entière et directement : pas de perte appliquée.
+    const coutBouteille = p.prixAchat || 0;
+    const ligneBouteille = (coutBouteille > 0 && p.prixVente > 0)
+      ? `Bouteille ${vin.volumeCl}cl : ${formatEuro(p.prixVente - coutBouteille)}`
+      : null;
+    const lignes = [ligne12, ligneBouteille].filter(Boolean);
+    return { type: 'vin', texte: lignes.length ? lignes.join(' · ') : '—' };
   }
   return null;
+}
+
+const CATEGORIES_PRODUIT = ['Soda', 'Jus de fruit', 'Bières bouteille', 'Kombucha bouteille', 'Alcool bouteille', 'Sirop', 'Fût de bières', 'Vin', 'Autre'];
+
+// Devine une catégorie pour les produits existants qui n'en ont pas encore (import initial,
+// anciens produits...), à partir de conventions de nommage déjà utilisées ailleurs dans
+// l'app (fût, volumes 70/75cl). Le café peut ensuite corriger via le menu déroulant.
+function deviverCategorieProduit(nom){
+  const n = (nom || '').trim();
+  if(/^f[uû]t\b/i.test(n)) return 'Fût de bières';
+  if(/\bsirop\b/i.test(n)) return 'Sirop';
+  if(/kombucha/i.test(n)) return 'Kombucha bouteille';
+  if(/75\s*cl/i.test(n)) return 'Vin';
+  if(/70\s*cl/i.test(n)) return 'Alcool bouteille';
+  return 'Autre';
 }
 
 function renderStockTable(){
@@ -3793,8 +3868,15 @@ function renderStockTable(){
     wrap.innerHTML = `<div class="empty-state"><div class="display">Aucun produit pour l'instant</div>Ajoutez votre premier produit ci-dessus.</div>`;
     return;
   }
+  DATA.produits.forEach(p=>{
+    if(!CATEGORIES_PRODUIT.includes(p.categorie)) p.categorie = deviverCategorieProduit(p.nom);
+  });
   const seuil = DATA.seuilAlerte;
-  let rows = DATA.produits.map(p=>{
+  const optionsCategorie = (selection) => CATEGORIES_PRODUIT.map(c =>
+    `<option value="${c}" ${c === selection ? 'selected' : ''}>${c}</option>`
+  ).join('');
+
+  const ligneProduit = (p) => {
     const bas = p.quantite <= seuil;
     const margeVerre = margeVerreProduit(p);
     let margeCell;
@@ -3811,6 +3893,7 @@ function renderStockTable(){
     }
     return `<tr class="${bas?'low-stock':''}">
       <td><input type="text" value="${escapeHtml(p.nom)}" onchange="modifierProduit('${p.id}','nom',this.value)"></td>
+      <td><select onchange="modifierProduit('${p.id}','categorie',this.value)">${optionsCategorie(p.categorie)}</select></td>
       <td class="num stock-cell"><input type="number" step="1" min="0" style="text-align:right" value="${p.quantite}" onchange="modifierProduit('${p.id}','quantite',this.value)"></td>
       <td class="num"><input type="number" step="0.01" min="0" style="text-align:right" value="${p.prixAchat}" onchange="modifierProduit('${p.id}','prixAchat',this.value)"></td>
       <td class="num"><input type="number" step="0.01" min="0" style="text-align:right" value="${p.prixVente}" onchange="modifierProduit('${p.id}','prixVente',this.value)"></td>
@@ -3819,10 +3902,23 @@ function renderStockTable(){
       <td>${bas ? '<span class="badge warn">Stock bas</span>' : '<span class="badge ok">OK</span>'}</td>
       <td><button class="icon-btn" title="Supprimer" onclick="supprimerProduit('${p.id}')">🗑</button></td>
     </tr>`;
-  }).join('');
+  };
+
+  const groupes = {};
+  CATEGORIES_PRODUIT.forEach(c => groupes[c] = []);
+  DATA.produits.forEach(p => groupes[p.categorie].push(p));
+
+  let rows = '';
+  CATEGORIES_PRODUIT.forEach(cat => {
+    const liste = groupes[cat];
+    if(liste.length === 0) return;
+    rows += `<tr class="categorie-row"><td colspan="9">${escapeHtml(cat)} (${liste.length})</td></tr>`;
+    rows += liste.map(ligneProduit).join('');
+  });
+
   wrap.innerHTML = `<table>
     <thead><tr>
-      <th>Produit</th><th class="num">Quantité</th><th class="num">Prix d'achat</th><th class="num">Prix de vente</th><th class="num">Valeur stock</th><th class="num">Marge</th><th>Statut</th><th></th>
+      <th>Produit</th><th>Catégorie</th><th class="num">Quantité</th><th class="num">Prix d'achat</th><th class="num">Prix de vente</th><th class="num">Valeur stock</th><th class="num">Marge</th><th>Statut</th><th></th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
