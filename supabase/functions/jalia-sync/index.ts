@@ -202,6 +202,23 @@ function parseDateTillFr(texte: string): string | null {
   return `${m[3]}-${mois}-${jour}`;
 }
 
+function dateCommercialeParis(now: Date): string {
+  // Le café ferme vers 2h du matin : avant 6h, on est encore dans la journée
+  // commerciale de la veille, pas dans une nouvelle journée. Calculé en heure de Paris.
+  const formatter = new Intl.DateTimeFormat('fr-CA', {
+    timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false,
+  });
+  const parts = Object.fromEntries(formatter.formatToParts(now).map((p) => [p.type, p.value]));
+  let y = parseInt(parts.year, 10), mo = parseInt(parts.month, 10), d = parseInt(parts.day, 10);
+  const heure = parseInt(parts.hour, 10) % 24;
+  if (heure < 6) {
+    const veille = new Date(Date.UTC(y, mo - 1, d));
+    veille.setUTCDate(veille.getUTCDate() - 1);
+    y = veille.getUTCFullYear(); mo = veille.getUTCMonth() + 1; d = veille.getUTCDate();
+  }
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
 function listerTills(html: string): TillListEntry[] {
   const entries: TillListEntry[] = [];
   const re = /href="\/fr\/dashboard\/till\/(\d+)"[^>]*>([^<]*)</g;
@@ -290,7 +307,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const nowIso = new Date().toISOString();
-    const dateDuJour = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const dateDuJour = dateCommercialeParis(new Date());
     const moisCourant = dateDuJour.slice(0, 7);
 
     const tillsListHtml = await fetchAuthed(jar, `/fr/dashboard/establishment/${ESTABLISHMENT_ID}/tills`);

@@ -3466,8 +3466,21 @@ function formatDateFr(iso){
   return `${d}/${m}/${y}`;
 }
 function todayIso(){
-  const d = new Date();
-  return d.toISOString().slice(0,10);
+  // Le café ferme vers 2h du matin : avant 6h, on est encore dans la journée
+  // commerciale de la veille (ex: 2h30 le 25 juillet = encore le service du 24),
+  // pas dans une nouvelle journée. Calculé en heure de Paris, pas en UTC.
+  const formatter = new Intl.DateTimeFormat('fr-CA', {
+    timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false,
+  });
+  const parts = Object.fromEntries(formatter.formatToParts(new Date()).map(p => [p.type, p.value]));
+  let y = parseInt(parts.year, 10), mo = parseInt(parts.month, 10), d = parseInt(parts.day, 10);
+  const heure = parseInt(parts.hour, 10) % 24;
+  if(heure < 6){
+    const veille = new Date(Date.UTC(y, mo - 1, d));
+    veille.setUTCDate(veille.getUTCDate() - 1);
+    y = veille.getUTCFullYear(); mo = veille.getUTCMonth() + 1; d = veille.getUTCDate();
+  }
+  return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 }
 
 function afficherToast(msg){
