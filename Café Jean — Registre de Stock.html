@@ -755,6 +755,13 @@
     max-width:90vw;
     max-height:90vh;
   }
+  .video-overlay img{
+    max-width:90vw;
+    max-height:90vh;
+    display:block;
+    border-radius:6px;
+    box-shadow:0 8px 30px rgba(0,0,0,0.5);
+  }
   .alerte-plouvier{
     display:flex;
     align-items:center;
@@ -3003,6 +3010,7 @@
           <p class="note" style="margin-top:8px;">Pour l'instant cette bibliothèque sert juste de stockage de référence — elle n'est pas encore intégrée aux visuels générés par l'IA.</p>
 
           <div class="comptage-actions-bar" style="margin-top:14px;">
+            <button class="btn ghost" id="poster-apercu-btn" onclick="apercuVisuel('posterFrame', FORMATS_SOCIAL[posterState.format].w, FORMATS_SOCIAL[posterState.format].h)" disabled>👁️ Voir l'aperçu</button>
             <button class="btn" id="poster-download-btn" onclick="telechargerPosterIA()" disabled>⬇️ Télécharger l'image</button>
           </div>
         </div>
@@ -3027,6 +3035,7 @@
         </div>
       </div>
       <div class="comptage-actions-bar" style="margin-top:14px;">
+        <button class="btn ghost" id="programme-apercu-btn" onclick="apercuVisuel('programmeFrame', 1080, 1350)" disabled>👁️ Voir l'aperçu</button>
         <button class="btn ghost" id="programme-download-btn" onclick="telechargerProgrammeIA()" disabled>⬇️ Télécharger l'affiche</button>
       </div>
     </div>
@@ -4506,6 +4515,8 @@ function afficherPosterIA(html){
   frame.innerHTML = nettoye;
   const btn = document.getElementById('poster-download-btn');
   if(btn) btn.disabled = false;
+  const apercuBtn = document.getElementById('poster-apercu-btn');
+  if(apercuBtn) apercuBtn.disabled = false;
 }
 
 async function telechargerPosterIA(){
@@ -4538,6 +4549,34 @@ async function telechargerPosterIA(){
   }
 }
 
+// Aperçu en grand d'un visuel généré, sans déclencher de téléchargement — utilisé pour le
+// Créateur de visuel et pour l'affiche du Programme du mois.
+async function apercuVisuel(frameId, largeur, hauteur){
+  const frame = document.getElementById(frameId);
+  const etatHtml = frameId === 'posterFrame' ? posterState.html : (frameId === 'programmeFrame' ? programmeState.html : true);
+  if(!frame || !etatHtml){
+    afficherToast('Générez un visuel avant de voir l\'aperçu.');
+    return;
+  }
+  const transformOriginal = frame.style.transform;
+  frame.style.transform = 'none';
+  try{
+    const canvas = await html2canvas(frame, { width: largeur, height: hauteur, backgroundColor: null, scale: 1 });
+    const img = document.getElementById('apercuVisuelImg');
+    img.src = canvas.toDataURL('image/png');
+    document.getElementById('apercuVisuelOverlay').style.display = 'flex';
+  }catch(e){
+    console.error(e);
+    afficherToast("Erreur lors de l'aperçu.");
+  }finally{
+    frame.style.transform = transformOriginal;
+  }
+}
+
+function fermerApercuVisuel(){
+  document.getElementById('apercuVisuelOverlay').style.display = 'none';
+}
+
 /* ============ PROGRAMME DU MOIS (généré par l'IA, comme le créateur de visuel) ============ */
 const programmeState = { html: '' };
 
@@ -4560,6 +4599,8 @@ function afficherProgrammeIA(html){
   frame.innerHTML = nettoye;
   const btn = document.getElementById('programme-download-btn');
   if(btn) btn.disabled = false;
+  const apercuBtn = document.getElementById('programme-apercu-btn');
+  if(apercuBtn) apercuBtn.disabled = false;
 }
 
 async function genererProgrammeIA(){
@@ -6576,6 +6617,13 @@ initSync();
 
 <div class="video-overlay" id="videoViderSlipOverlay">
   <video id="videoViderSlipEl" src="assets/vider-slip.mp4" playsinline onended="fermerVideoViderSlip()"></video>
+</div>
+
+<div class="video-overlay" id="apercuVisuelOverlay" onclick="if(event.target===this) fermerApercuVisuel()">
+  <div style="position:relative;">
+    <img id="apercuVisuelImg" alt="Aperçu du visuel">
+    <button class="btn ghost" style="position:absolute;top:-46px;right:0;background:var(--paper);" onclick="fermerApercuVisuel()">✕ Fermer</button>
+  </div>
 </div>
 
 </body></html>

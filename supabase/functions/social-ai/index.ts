@@ -71,10 +71,13 @@ Contraintes techniques STRICTES pour visuelHtml :
 - Le nom "CAFÉ JEAN" doit apparaître quelque part. Pour le vrai logo (dessin encré du café),
   n'essaie JAMAIS de le recréer toi-même — INTERDIT de dessiner un logo avec des <svg>/<text>/
   <path>, des lettres découpées, ou tout autre bricolage visuel pour imiter "CAFÉ JEAN" en
-  image. Deux options seulement : (a) le token exact et littéral {{LOGO_CAFE_JEAN}} seul à
-  l'intérieur d'une <div> de taille définie (ex: width:220px;height:110px;margin:0 auto), qui
-  sera automatiquement remplacé par la vraie image du logo, ou (b) simplement le texte "CAFÉ
-  JEAN" en typographie normale (une <div> avec du texte, sans fioriture graphique autour).
+  image. Deux options seulement : (a) le token exact et littéral {{LOGO_CAFE_JEAN}} utilisé
+  UNIQUEMENT comme contenu texte d'une <div>, jamais autrement — ex: <div style="width:220px;
+  height:110px;margin:0 auto">{{LOGO_CAFE_JEAN}}</div>. INTERDIT de mettre ce token dans un
+  attribut CSS (background-image:url(...), content:"...", etc.) ou dans un attribut HTML — il
+  sera remplacé automatiquement par une vraie balise <img>, ce qui casse tout si le token n'est
+  pas dans le flux de texte normal d'une div. Ou (b) simplement le texte "CAFÉ JEAN" en
+  typographie normale (une <div> avec du texte, sans fioriture graphique autour).
 - Le texte (titre, date/heure, détails) vient du prompt — mets les infos concrètes données
   (date, heure, prix...) si elles sont fournies, invente une formulation sobre sinon.
 
