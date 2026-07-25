@@ -2987,32 +2987,37 @@
   <section class="tab-panel" id="tab-social">
     <div class="card">
       <h2 id="social-visuel-titre">📸 Créateur de visuel</h2>
-      <p class="note">Choisissez un format, puis décrivez ce que vous voulez publier dans l'Assistant IA ci-dessous : l'IA dessine un visuel sur-mesure pour l'occasion (pas un gabarit générique), dans le style du Café Jean. Téléchargez ensuite l'image.</p>
+      <p class="note">Décrivez ce que vous voulez publier, choisissez Story ou Publication, et générez : l'IA dessine un visuel sur-mesure pour l'occasion et écrit la légende, toujours dans le style du Café Jean. Vous copiez/téléchargez et publiez vous-même sur Instagram/Facebook.</p>
 
       <label style="display:block;">Format</label>
       <div class="template-choix" id="poster-format-choix">
         <button type="button" onclick="choisirFormatPoster('story')">Story</button>
         <button type="button" class="active" onclick="choisirFormatPoster('publication')">Publication</button>
-        <button type="button" onclick="choisirFormatPoster('affiche')">Affiche</button>
       </div>
 
-      <div class="social-layout">
+      <div class="form-grid" style="margin-top:14px;">
+        <div style="grid-column:1/-1;">
+          <label for="social-ia-prompt">Votre prompt</label>
+          <textarea id="social-ia-prompt" rows="6" placeholder="Ex : Soirée jazz manouche vendredi 26 juillet à 20h30, 10€ l'entrée, buffet à l'entracte." oninput="sauvegarderPromptSocial()"></textarea>
+        </div>
+      </div>
+      <div class="comptage-actions-bar" style="margin-top:14px;">
+        <button class="btn" id="social-ia-btn" onclick="genererIdeesSocial()">✨ Générer</button>
+      </div>
+
+      <div class="social-layout" style="margin-top:14px;">
         <div class="social-canvas-wrap" id="poster-frame-wrap" style="width:270px;height:270px;overflow:hidden;">
           <div id="posterFrame" style="width:1080px;height:1080px;transform:scale(0.25);transform-origin:top left;position:relative;background:var(--ink);overflow:hidden;">
-            <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--paper);font-family:'Playfair Display',serif;font-size:36px;text-align:center;padding:40px;box-sizing:border-box;opacity:0.55;">Décrivez votre publication dans l'Assistant IA ci-dessous pour générer le visuel</div>
+            <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--paper);font-family:'Playfair Display',serif;font-size:36px;text-align:center;padding:40px;box-sizing:border-box;opacity:0.55;">Décrivez votre publication ci-dessus pour générer le visuel</div>
           </div>
         </div>
 
         <div class="social-controls">
-          <label style="display:block;">Bibliothèque de photos de l'établissement</label>
-          <div id="social-photos-galerie" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;"></div>
-          <input type="file" id="social-photos-ajout" accept="image/*" multiple onchange="ajouterPhotosEtablissement(event)">
-          <p class="note" style="margin-top:8px;">Pour l'instant cette bibliothèque sert juste de stockage de référence — elle n'est pas encore intégrée aux visuels générés par l'IA.</p>
-
-          <div class="comptage-actions-bar" style="margin-top:14px;">
+          <div class="comptage-actions-bar">
             <button class="btn ghost" id="poster-apercu-btn" onclick="apercuVisuel('posterFrame', FORMATS_SOCIAL[posterState.format].w, FORMATS_SOCIAL[posterState.format].h)" disabled>👁️ Voir l'aperçu</button>
             <button class="btn" id="poster-download-btn" onclick="telechargerPosterIA()" disabled>⬇️ Télécharger l'image</button>
           </div>
+          <div id="social-ia-resultat" style="margin-top:16px;"></div>
         </div>
       </div>
     </div>
@@ -3040,20 +3045,6 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>🤖 Assistant IA — idées de publication</h2>
-      <p class="note">Écrivez vous-même le prompt complet : l'événement ou le produit, le ton, votre histoire ou votre identité si besoin. L'IA en tire plusieurs légendes + un visuel — vous copiez ce qui vous plaît et publiez vous-même sur Instagram/Facebook. Rien n'est publié automatiquement.</p>
-      <div class="form-grid">
-        <div style="grid-column:1/-1;">
-          <label for="social-ia-prompt">Votre prompt</label>
-          <textarea id="social-ia-prompt" rows="6" placeholder="Ex : Soirée jazz manouche vendredi 26 juillet à 20h30, 10€ l'entrée, buffet à l'entracte. Café Jean existe depuis 1923 à Wazemmes (Lille), ambiance rétro chaleureuse, jamais trop léché. Ton familier, pas pub du tout." oninput="sauvegarderPromptSocial()"></textarea>
-        </div>
-      </div>
-      <div class="comptage-actions-bar" style="margin-top:14px;">
-        <button class="btn" id="social-ia-btn" onclick="genererIdeesSocial()">✨ Générer des idées</button>
-      </div>
-      <div id="social-ia-resultat" style="margin-top:16px;"></div>
-    </div>
   </section>
 
   <!-- TAB: SAUVEGARDE -->
@@ -3404,7 +3395,6 @@ function dataParDefaut(){
     recettes: [],
     seauEau: { dernierVidageISO: new Date().toISOString() },
     commandePlouvier: { produits: [] },
-    photosEtablissement: [],
     aProposCafe: '',
     daDescription: '',
     promptSocialLibre: '',
@@ -3548,7 +3538,6 @@ function activerOnglet(tab){
   if(tab === 'previsions') renderPrevisionTab();
   if(tab === 'social'){
     choisirFormatPoster(posterState.format);
-    renderGaleriePhotosEtablissement();
     if(!DATA.promptSocialLibre && (DATA.aProposCafe || DATA.daDescription)){
       DATA.promptSocialLibre = [DATA.daDescription, DATA.aProposCafe].filter(Boolean).join('\n\n');
       sauvegarder();
@@ -4474,7 +4463,6 @@ const posterState = { format: 'publication', html: '' };
 const FORMATS_SOCIAL = {
   story: { w: 1080, h: 1920, label: 'Story' },
   publication: { w: 1080, h: 1080, label: 'Publication' },
-  affiche: { w: 1080, h: 1350, label: 'Affiche' },
 };
 
 function choisirFormatPoster(nom){
@@ -4674,78 +4662,6 @@ async function telechargerProgrammeIA(){
   }finally{
     frame.style.transform = transformOriginal;
   }
-}
-
-/* ============ BIBLIOTHÈQUE DE PHOTOS DE L'ÉTABLISSEMENT ============ */
-function redimensionnerImageFichier(file, maxDim, qualite){
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if(width > height && width > maxDim){
-          height = Math.round(height * (maxDim/width));
-          width = maxDim;
-        }else if(height >= width && height > maxDim){
-          width = Math.round(width * (maxDim/height));
-          height = maxDim;
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', qualite));
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-async function ajouterPhotosEtablissement(event){
-  const files = Array.from(event.target.files || []);
-  if(files.length === 0) return;
-  DATA.photosEtablissement = DATA.photosEtablissement || [];
-  for(const file of files){
-    try{
-      const dataUrl = await redimensionnerImageFichier(file, 900, 0.72);
-      DATA.photosEtablissement.push({ id: genererId(), dataUrl });
-    }catch(e){
-      console.error('Erreur import photo', e);
-    }
-  }
-  sauvegarder();
-  renderGaleriePhotosEtablissement();
-  afficherToast('Photo(s) ajoutée(s) à la bibliothèque.');
-  event.target.value = '';
-}
-
-function renderGaleriePhotosEtablissement(){
-  const wrap = document.getElementById('social-photos-galerie');
-  if(!wrap) return;
-  const photos = DATA.photosEtablissement || [];
-  if(photos.length === 0){
-    wrap.innerHTML = '<p class="note" style="margin:0;">Aucune photo enregistrée pour l\'instant — ajoutez des photos de votre établissement, de la carte...</p>';
-    return;
-  }
-  wrap.innerHTML = photos.map(p => `
-    <div style="position:relative;">
-      <img src="${p.dataUrl}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:pointer;" onclick="utiliserPhotoEtablissement('${p.id}')" title="Utiliser cette photo">
-      <button type="button" onclick="supprimerPhotoEtablissement('${p.id}')" title="Supprimer" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:none;background:var(--rust);color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0;">×</button>
-    </div>
-  `).join('');
-}
-
-function utiliserPhotoEtablissement(id){
-  afficherToast("Cette bibliothèque n'est pas encore utilisée par les visuels générés par l'IA.");
-}
-
-function supprimerPhotoEtablissement(id){
-  DATA.photosEtablissement = (DATA.photosEtablissement||[]).filter(p=>p.id!==id);
-  sauvegarder();
-  renderGaleriePhotosEtablissement();
 }
 
 
