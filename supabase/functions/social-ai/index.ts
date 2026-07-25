@@ -1,6 +1,6 @@
 // Fonction appelée depuis l'onglet "Réseaux sociaux" de l'app : à partir d'un
 // court brief tapé par le café, génère :
-//   1. plusieurs propositions de légende (+ hashtags) pour Instagram/Facebook
+//   1. une légende pour Instagram/Facebook (pas de hashtags)
 //   2. un visuel sur-mesure (HTML/CSS généré par l'IA, pas un gabarit fixe)
 // via l'API Mistral AI (entreprise française, crédits gratuits à l'inscription
 // sur console.mistral.ai). L'IA ne publie rien : le café copie le texte et
@@ -63,7 +63,7 @@ déjà écrit son prompt et sa DA, tu ne proposes pas de variantes) :
   "une expérience unique", "petits et grands", etc. Si tu sens que ça sonne "pub", tu changes.
 - Pas de point d'exclamation partout — une phrase sur deux au grand maximum, souvent aucun.
 - Emoji : quasiment jamais. Zéro la plupart du temps, un seul si vraiment ça sonne naturel.
-- Hashtags : 0 à 2 maximum, seulement s'ils sonnent naturels. La plupart du temps, aucun.
+- Pas de hashtags du tout — le café ne veut aucune suggestion de hashtag, juste le texte.
 
 Pour le visuel (champ "visuelHtml"), tu es maintenant aussi le/la graphiste du café. Tu
 dessines une affiche/story/publication SUR MESURE pour cet événement précis, pas un gabarit
@@ -173,9 +173,9 @@ ainsi :
   de risquer un débordement ou un chevauchement).
 
 Réponds UNIQUEMENT avec un JSON strict, sans texte autour, de cette forme exacte (un seul
-élément dans "captions", jamais plusieurs — et pas de champ "style", juste le texte brut) :
-{"captions":[{"texte":"..."}],"hashtags":["#..."],"visuelHtml":"<div style=\\"...\\">...</div>"}
-Le tableau hashtags peut être vide ([]) si ça ne sonne pas naturel d'en mettre.
+élément dans "captions", jamais plusieurs — pas de champ "style", pas de champ "hashtags",
+juste le texte brut) :
+{"captions":[{"texte":"..."}],"visuelHtml":"<div style=\\"...\\">...</div>"}
 Le HTML dans visuelHtml doit être une chaîne JSON valide (guillemets internes échappés).`;
 
 function jsonResponse(body: unknown, status = 200) {
@@ -265,7 +265,7 @@ Deno.serve(async (req: Request) => {
       const jsonMatch = texte.match(/\{[\s\S]*\}/);
       resultat = JSON.parse(jsonMatch ? jsonMatch[0] : texte);
     } catch {
-      resultat = { captions: [{ texte }], hashtags: [] };
+      resultat = { captions: [{ texte }] };
     }
 
     if (typeof resultat.visuelHtml === 'string') {

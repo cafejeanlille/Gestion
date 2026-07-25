@@ -60,7 +60,6 @@
   .sync-badge.ok .dot{ background:var(--emerald); }
   .sync-badge.syncing .dot{ background:var(--gold); }
   .sync-badge.offline .dot{ background:var(--rust); }
-  #suggestion-fond-wrap tfoot td{ font-weight:700; border-top:2px solid var(--line); }
   @media (max-width:640px){
     .sync-badge{ position:static; justify-content:center; margin-top:8px; }
   }
@@ -3213,11 +3212,6 @@
 
     </div>
 
-    <div class="card" id="card-suggestion-fond">
-      <h2>Suggestion de fond de caisse</h2>
-      <div id="suggestion-fond-wrap"><p class="note">Comptez vos billets et pièces ci-dessus pour voir la suggestion de composition.</p></div>
-    </div>
-
     <div class="card">
       <h2>Rapprochement carte bancaire (télécollecte)</h2>
       <div class="form-grid" style="margin-bottom:20px;">
@@ -4247,10 +4241,8 @@ function basculerModeComptageSimple(){
   const simple = comptageModeSimple();
   const detailWrap = document.getElementById('cpt-detail-columns');
   const manuelWrap = document.getElementById('cpt-total-manuel-wrap');
-  const suggestionCard = document.getElementById('card-suggestion-fond');
   if(detailWrap) detailWrap.style.display = simple ? 'none' : '';
   if(manuelWrap) manuelWrap.style.display = simple ? '' : 'none';
-  if(suggestionCard) suggestionCard.style.display = simple ? 'none' : '';
   if(simple) viderDenominations();
   else{
     const billetsEl = document.getElementById('cpt-total-billets');
@@ -4372,89 +4364,7 @@ function majComptageCalcul(){
     else if(ecartCarte < -0.004) carteEcartBox.classList.add('ecart-negatif');
   }
 
-  if(!comptageModeSimple()) renderSuggestionFond();
-
   return { total, fond, ca, net, ecart, carteRapport, carteContact, carteSansContact, carteTotal, ecartCarte };
-}
-
-function suggererCompositionFond(montantCible, disponible){
-  let centimeCible = Math.round(montantCible * 100);
-  const choix = {};
-  if(centimeCible <= 0) return { choix, restant: 0 };
-  // Pièces d'abord (grande à petite valeur), billets seulement ensuite —
-  // pour laisser un maximum de monnaie utilisable dans le fond de caisse
-  // et déposer/retirer plutôt les billets.
-  const ordre = [
-    ...DENOMINATIONS.filter(d => d.type === 'piece').sort((a,b) => b.valeur - a.valeur),
-    ...DENOMINATIONS.filter(d => d.type === 'billet').sort((a,b) => b.valeur - a.valeur)
-  ];
-  ordre.forEach(d => {
-    const valeurCts = Math.round(d.valeur * 100);
-    const dispo = disponible[d.valeur] || 0;
-    const maxParMontant = Math.floor(centimeCible / valeurCts);
-    const pris = Math.min(dispo, maxParMontant);
-    if(pris > 0){
-      choix[d.valeur] = pris;
-      centimeCible -= pris * valeurCts;
-    }
-  });
-  return { choix, restant: Math.round(centimeCible) / 100 };
-}
-
-function renderSuggestionFond(){
-  const wrap = document.getElementById('suggestion-fond-wrap');
-  if(!wrap) return;
-  const { detail: disponible, total: totalCompte } = calculerTotalDenominations();
-  const cibleEl = document.getElementById('cpt-fond');
-  const cible = cibleEl ? (parseFloat(cibleEl.value) || 0) : 0;
-
-  if(cible <= 0){
-    wrap.innerHTML = `<p class="note">Indiquez le fond de caisse ci-dessus pour voir la suggestion de composition.</p>`;
-    return;
-  }
-  const auMoinsUneCoupure = DENOMINATIONS.some(d => (disponible[d.valeur]||0) > 0);
-  if(!auMoinsUneCoupure){
-    wrap.innerHTML = `<p class="note">Comptez vos billets et pièces ci-dessus pour voir la suggestion de composition.</p>`;
-    return;
-  }
-
-  const { choix, restant } = suggererCompositionFond(cible, disponible);
-
-  const lignes = DENOMINATIONS.filter(d => (disponible[d.valeur]||0) > 0).map(d => {
-    const compte = disponible[d.valeur] || 0;
-    const garder = choix[d.valeur] || 0;
-    const deposer = compte - garder;
-    return `<tr>
-      <td>${libelleDenom(d.valeur)}</td>
-      <td class="num">${compte}</td>
-      <td class="num">${garder > 0 ? garder : '—'}</td>
-      <td class="num">${deposer > 0 ? deposer : '—'}</td>
-    </tr>`;
-  }).join('');
-
-  const totalGarde = Math.round((cible - restant) * 100) / 100;
-  const totalDepose = Math.round((totalCompte - totalGarde) * 100) / 100;
-
-  const alerte = restant > 0.004
-    ? `<p class="note" style="color:var(--rust);">⚠ Impossible d'atteindre exactement ${formatEuro(cible)} avec les coupures comptées : il manque ${formatEuro(restant)}. Ajustez le fond de caisse ou complétez avec la coupure disponible la plus proche.</p>`
-    : '';
-
-  wrap.innerHTML = `
-    <div style="overflow-x:auto;">
-      <table>
-        <thead><tr><th>Coupure</th><th class="num">Comptées</th><th class="num">À garder (fond)</th><th class="num">À déposer / retirer</th></tr></thead>
-        <tbody>${lignes}</tbody>
-        <tfoot>
-          <tr>
-            <td>Total</td>
-            <td class="num">${formatEuro(totalCompte)}</td>
-            <td class="num">${formatEuro(totalGarde)}</td>
-            <td class="num">${formatEuro(totalDepose)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-    ${alerte}`;
 }
 
 /* ============ CRÉATEUR DE VISUEL (design sur-mesure généré par l'IA) ============ */
@@ -4704,7 +4614,6 @@ async function genererIdeesSocial(){
 function afficherIdeesSocial(data){
   const resultatEl = document.getElementById('social-ia-resultat');
   const captions = Array.isArray(data.captions) ? data.captions : [];
-  const hashtags = Array.isArray(data.hashtags) ? data.hashtags.join(' ') : '';
 
   if(typeof data.visuelHtml === 'string' && data.visuelHtml.trim()){
     afficherPosterIA(data.visuelHtml);
@@ -4714,7 +4623,7 @@ function afficherIdeesSocial(data){
     resultatEl.innerHTML = data.visuelHtml ? '<p class="note">Visuel généré ci-dessus ↑ (pas de légende cette fois).</p>' : '<p class="note">Aucune proposition générée.</p>';
     return;
   }
-  window._socialIaCaptions = captions.map(c => (c.texte || '') + (hashtags ? '\n\n' + hashtags : ''));
+  window._socialIaCaptions = captions.map(c => c.texte || '');
 
   const visuelNote = data.visuelHtml ? `
     <div class="recette-item" style="margin-bottom:14px; padding:14px 16px; border:1px solid var(--line); border-radius:6px; background:var(--paper-2);">
@@ -4727,7 +4636,7 @@ function afficherIdeesSocial(data){
       <div style="white-space:pre-wrap; margin-bottom:10px;">${escapeHtml(c.texte || '')}</div>
       <button class="btn ghost" onclick="copierTexteSocial(${i})">📋 Copier</button>
     </div>
-  `).join('') + (hashtags ? `<p class="note"><strong>Hashtags suggérés :</strong> ${escapeHtml(hashtags)}</p>` : '');
+  `).join('');
 }
 
 function revoirVisuelIA(){
