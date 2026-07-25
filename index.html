@@ -1623,7 +1623,7 @@
         <div>
           <label for="p-categorie">Catégorie</label>
           <select id="p-categorie">
-            <option value="Soda">Soda</option>
+            <option value="Soft">Soft</option>
             <option value="Jus de fruit">Jus de fruit</option>
             <option value="Bières bouteille">Bières bouteille</option>
             <option value="Kombucha bouteille">Kombucha bouteille</option>
@@ -3844,7 +3844,7 @@ function margeVerreProduit(p){
   return null;
 }
 
-const CATEGORIES_PRODUIT = ['Soda', 'Jus de fruit', 'Bières bouteille', 'Kombucha bouteille', 'Alcool bouteille', 'Sirop', 'Fût de bières', 'Vin', 'Autre'];
+const CATEGORIES_PRODUIT = ['Soft', 'Jus de fruit', 'Bières bouteille', 'Kombucha bouteille', 'Alcool bouteille', 'Sirop', 'Fût de bières', 'Vin', 'Autre'];
 
 // Devine une catégorie pour les produits existants qui n'en ont pas encore (import initial,
 // anciens produits...), à partir de conventions de nommage déjà utilisées ailleurs dans
@@ -3868,9 +3868,12 @@ function renderStockTable(){
     wrap.innerHTML = `<div class="empty-state"><div class="display">Aucun produit pour l'instant</div>Ajoutez votre premier produit ci-dessus.</div>`;
     return;
   }
+  let categorieMigree = false;
   DATA.produits.forEach(p=>{
-    if(!CATEGORIES_PRODUIT.includes(p.categorie)) p.categorie = deviverCategorieProduit(p.nom);
+    if(p.categorie === 'Soda'){ p.categorie = 'Soft'; categorieMigree = true; } // ancien nom de catégorie
+    if(!CATEGORIES_PRODUIT.includes(p.categorie)){ p.categorie = deviverCategorieProduit(p.nom); categorieMigree = true; }
   });
+  if(categorieMigree) sauvegarder();
   const seuil = DATA.seuilAlerte;
   const optionsCategorie = (selection) => CATEGORIES_PRODUIT.map(c =>
     `<option value="${c}" ${c === selection ? 'selected' : ''}>${c}</option>`
@@ -3892,8 +3895,8 @@ function renderStockTable(){
         : '—';
     }
     return `<tr class="${bas?'low-stock':''}">
-      <td><input type="text" value="${escapeHtml(p.nom)}" onchange="modifierProduit('${p.id}','nom',this.value)"></td>
-      <td><select onchange="modifierProduit('${p.id}','categorie',this.value)">${optionsCategorie(p.categorie)}</select></td>
+      <td><input type="text" style="min-width:300px;" value="${escapeHtml(p.nom)}" onchange="modifierProduit('${p.id}','nom',this.value)"></td>
+      <td><select style="min-width:150px;" onchange="modifierProduit('${p.id}','categorie',this.value)">${optionsCategorie(p.categorie)}</select></td>
       <td class="num stock-cell"><input type="number" step="1" min="0" style="text-align:right" value="${p.quantite}" onchange="modifierProduit('${p.id}','quantite',this.value)"></td>
       <td class="num"><input type="number" step="0.01" min="0" style="text-align:right" value="${p.prixAchat}" onchange="modifierProduit('${p.id}','prixAchat',this.value)"></td>
       <td class="num"><input type="number" step="0.01" min="0" style="text-align:right" value="${p.prixVente}" onchange="modifierProduit('${p.id}','prixVente',this.value)"></td>
@@ -3916,12 +3919,12 @@ function renderStockTable(){
     rows += liste.map(ligneProduit).join('');
   });
 
-  wrap.innerHTML = `<table>
+  wrap.innerHTML = `<div style="overflow-x:auto;"><table style="min-width:1040px;">
     <thead><tr>
       <th>Produit</th><th>Catégorie</th><th class="num">Quantité</th><th class="num">Prix d'achat</th><th class="num">Prix de vente</th><th class="num">Valeur stock</th><th class="num">Marge</th><th>Statut</th><th></th>
     </tr></thead>
     <tbody>${rows}</tbody>
-  </table>`;
+  </table></div>`;
 }
 
 /* ============ COMPTAGE DE CAISSE ============ */
