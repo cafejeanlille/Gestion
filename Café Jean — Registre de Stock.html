@@ -3011,33 +3011,23 @@
 
     <div class="card">
       <h2>📅 Programme du mois</h2>
-      <p class="note">Ajoutez vos événements du mois (concerts, brunchs, soirées...) puis générez une affiche qui les liste tous, avec la DA du Café Jean.</p>
+      <p class="note">Décrivez le programme du mois (concerts, brunchs, soirées...) : l'IA dessine une affiche sur-mesure, dans le style du Café Jean.</p>
       <div class="form-grid">
-        <div>
-          <label for="evt-date">Date</label>
-          <input type="date" id="evt-date">
-        </div>
-        <div>
-          <label for="evt-titre">Événement</label>
-          <input type="text" id="evt-titre" placeholder="Ex : Concert live">
-        </div>
-        <div>
-          <label for="evt-horaire">Horaire</label>
-          <input type="text" id="evt-horaire" placeholder="Ex : 20h">
+        <div style="grid-column:1/-1;">
+          <label for="programme-prompt">Votre prompt</label>
+          <textarea id="programme-prompt" rows="6" placeholder="Ex : Programme de juillet — concert jazz le 26 à 21h, brunch tous les dimanches dès 11h, soirée quiz le 30 à 20h." oninput="sauvegarderProgrammePrompt()"></textarea>
         </div>
       </div>
       <div class="comptage-actions-bar" style="margin-top:14px;">
-        <button class="btn ghost" onclick="ajouterEvenementMois()">+ Ajouter l'événement</button>
+        <button class="btn" id="programme-ia-btn" onclick="genererProgrammeIA()">✨ Générer l'affiche</button>
       </div>
-      <div id="evenements-mois-liste" style="margin-top:16px;"></div>
-      <div class="comptage-actions-bar" style="margin-top:14px;">
-        <button class="btn" onclick="genererAfficheProgramme()">🖼️ Générer l'affiche du programme</button>
-      </div>
-      <div class="social-canvas-wrap" style="width:216px;height:270px;margin-top:14px;">
-        <canvas id="programmeCanvas" width="1080" height="1350" style="width:216px;height:270px;"></canvas>
+      <div class="social-canvas-wrap" id="programme-frame-wrap" style="width:216px;height:270px;overflow:hidden;margin-top:14px;">
+        <div id="programmeFrame" style="width:1080px;height:1350px;transform:scale(0.2);transform-origin:top left;position:relative;background:var(--ink);overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--paper);font-family:'Playfair Display',serif;font-size:36px;text-align:center;padding:40px;box-sizing:border-box;opacity:0.55;">Décrivez le programme du mois ci-dessus pour générer l'affiche</div>
+        </div>
       </div>
       <div class="comptage-actions-bar" style="margin-top:14px;">
-        <button class="btn ghost" onclick="telechargerProgrammeSocial()">⬇️ Télécharger l'affiche</button>
+        <button class="btn ghost" id="programme-download-btn" onclick="telechargerProgrammeIA()" disabled>⬇️ Télécharger l'affiche</button>
       </div>
     </div>
 
@@ -3405,11 +3395,11 @@ function dataParDefaut(){
     recettes: [],
     seauEau: { dernierVidageISO: new Date().toISOString() },
     commandePlouvier: { produits: [] },
-    evenementsMois: [],
     photosEtablissement: [],
     aProposCafe: '',
     daDescription: '',
     promptSocialLibre: '',
+    programmePrompt: '',
     tauxChargesVariables: 27,
     chargesFixes: [
       {label:'Loyer', montant:0},
@@ -3536,15 +3526,15 @@ function activerOnglet(tab){
   if(tab === 'previsions') renderPrevisionTab();
   if(tab === 'social'){
     choisirFormatPoster(posterState.format);
-    dessinerAfficheProgramme();
     renderGaleriePhotosEtablissement();
-    renderEvenementsMois();
     if(!DATA.promptSocialLibre && (DATA.aProposCafe || DATA.daDescription)){
       DATA.promptSocialLibre = [DATA.daDescription, DATA.aProposCafe].filter(Boolean).join('\n\n');
       sauvegarder();
     }
     const promptEl = document.getElementById('social-ia-prompt');
     if(promptEl) promptEl.value = DATA.promptSocialLibre || '';
+    const programmePromptEl = document.getElementById('programme-prompt');
+    if(programmePromptEl) programmePromptEl.value = DATA.programmePrompt || '';
   }
 }
 
@@ -4548,100 +4538,88 @@ async function telechargerPosterIA(){
   }
 }
 
-function couleurCss(nomVariable){
-  return getComputedStyle(document.documentElement).getPropertyValue(nomVariable).trim() || '#000000';
+/* ============ PROGRAMME DU MOIS (généré par l'IA, comme le créateur de visuel) ============ */
+const programmeState = { html: '' };
+
+function sauvegarderProgrammePrompt(){
+  const el = document.getElementById('programme-prompt');
+  DATA.programmePrompt = el ? el.value : '';
+  sauvegarder();
 }
 
-// Dessine le vrai logo Café Jean (image du header) centré en haut du visuel,
-// avec repli sur le texte "CAFÉ JEAN" si l'image n'est pas encore chargée.
-function dessinerLogoCafeJean(ctx, centerX, topY, hauteurCible){
-  const logo = document.getElementById('logoCafeJean');
-  if(logo && logo.complete && logo.naturalWidth > 0){
-    const ratio = logo.naturalWidth / logo.naturalHeight;
-    const w = hauteurCible * ratio;
-    ctx.drawImage(logo, centerX - w/2, topY, w, hauteurCible);
-  }else{
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = couleurCss('--paper') || '#F5F1E6';
-    ctx.font = "600 30px 'Playfair Display', serif";
-    ctx.fillText('CAFÉ JEAN', centerX, topY + hauteurCible*0.8);
-    ctx.restore();
+function afficherProgrammeIA(html){
+  const frame = document.getElementById('programmeFrame');
+  if(!frame) return;
+  programmeState.html = html;
+  let nettoye = nettoyerVisuelHtmlClient(html);
+  const logoImg = document.getElementById('logoCafeJean');
+  if(logoImg && logoImg.src && nettoye.includes('{{LOGO_CAFE_JEAN}}')){
+    const logoBalise = '<img src="' + logoImg.src + '" style="max-width:100%;max-height:100%;object-fit:contain;display:block;margin:0 auto;" />';
+    nettoye = nettoye.split('{{LOGO_CAFE_JEAN}}').join(logoBalise);
   }
+  frame.innerHTML = nettoye;
+  const btn = document.getElementById('programme-download-btn');
+  if(btn) btn.disabled = false;
 }
 
-// Affiche listant les événements du mois, générée depuis "Programme du mois"
-// (celle-ci reste un gabarit fixe dessiné en canvas — c'est une liste de
-// données, pas un visuel créatif à générer par l'IA).
-function dessinerAfficheProgramme(){
-  const canvas = document.getElementById('programmeCanvas');
-  if(!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  const gold = couleurCss('--gold') || '#C9A24B';
-  const ivoire = couleurCss('--paper') || '#F5F1E6';
-  const encre = couleurCss('--ink') || '#221F1B';
-
-  ctx.clearRect(0,0,W,H);
-  ctx.fillStyle = encre;
-  ctx.fillRect(0,0,W,H);
-
-  const moisCourant = MOIS_NOMS_FR[new Date().getMonth()];
-  ctx.textAlign = 'center';
-  dessinerLogoCafeJean(ctx, W/2, H*0.035, H*0.07);
-
-  ctx.font = "700 50px 'Playfair Display', serif";
-  ctx.fillStyle = gold;
-  ctx.fillText('PROGRAMME DE ' + moisCourant.toUpperCase(), W/2, H*0.155);
-
-  ctx.strokeStyle = gold;
-  ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(W*0.15, H*0.19); ctx.lineTo(W*0.85, H*0.19); ctx.stroke();
-
-  const evts = (DATA.evenementsMois || []).slice(0, 12);
-  const zoneHaut = H*0.24;
-  const zoneBas = H*0.94;
-  const pas = evts.length > 0 ? (zoneBas - zoneHaut) / evts.length : (zoneBas - zoneHaut);
-  const taille = Math.max(22, Math.min(40, pas * 0.42));
-
-  evts.forEach((e, i) => {
-    const y = zoneHaut + pas*i + pas*0.6;
-    ctx.textAlign = 'left';
-    ctx.font = `700 ${taille}px 'Playfair Display', serif`;
-    ctx.fillStyle = gold;
-    ctx.fillText(formatDateFr(e.date).slice(0,5), W*0.09, y);
-    ctx.font = `500 ${taille}px 'Playfair Display', serif`;
-    ctx.fillStyle = ivoire;
-    ctx.fillText(e.titre, W*0.09 + taille*4.6, y);
-    if(e.horaire){
-      ctx.textAlign = 'right';
-      ctx.font = `500 ${taille*0.78}px 'Playfair Display', serif`;
-      ctx.fillStyle = gold;
-      ctx.fillText(e.horaire, W*0.91, y);
+async function genererProgrammeIA(){
+  const promptEl = document.getElementById('programme-prompt');
+  const btn = document.getElementById('programme-ia-btn');
+  const brief = (promptEl.value || '').trim();
+  if(!brief){
+    afficherToast('Décrivez le programme du mois.');
+    return;
+  }
+  btn.disabled = true;
+  const texteOriginal = btn.textContent;
+  btn.textContent = '⏳ Génération...';
+  try{
+    const res = await supabaseFetch('/functions/v1/social-ai', {
+      method: 'POST',
+      body: JSON.stringify({ brief, format: 'affiche' })
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.error || 'Erreur inconnue.');
+    if(typeof data.visuelHtml === 'string' && data.visuelHtml.trim()){
+      afficherProgrammeIA(data.visuelHtml);
+    }else{
+      afficherToast('Aucun visuel généré cette fois, réessayez.');
     }
-  });
-  if(evts.length === 0){
-    ctx.textAlign = 'center';
-    ctx.fillStyle = ivoire;
-    ctx.font = "500 32px 'Playfair Display', serif";
-    ctx.fillText('Aucun événement pour le moment', W/2, H/2);
+  }catch(err){
+    afficherToast(err.message || 'Erreur lors de la génération.');
+  }finally{
+    btn.disabled = false;
+    btn.textContent = texteOriginal;
   }
 }
 
-function telechargerProgrammeSocial(){
-  const canvas = document.getElementById('programmeCanvas');
-  if(!canvas) return;
-  canvas.toBlob((blob)=>{
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `programme-cafe-jean-${todayIso()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    afficherToast('Affiche téléchargée — prête à publier !');
-  }, 'image/png');
+async function telechargerProgrammeIA(){
+  const frame = document.getElementById('programmeFrame');
+  if(!frame || !programmeState.html){
+    afficherToast('Générez une affiche avant de la télécharger.');
+    return;
+  }
+  const transformOriginal = frame.style.transform;
+  frame.style.transform = 'none';
+  try{
+    const canvas = await html2canvas(frame, { width: 1080, height: 1350, backgroundColor: null, scale: 1 });
+    canvas.toBlob((blob)=>{
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `programme-cafe-jean-${todayIso()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      afficherToast('Affiche téléchargée — prête à publier !');
+    }, 'image/png');
+  }catch(e){
+    console.error(e);
+    afficherToast("Erreur lors de l'export de l'image.");
+  }finally{
+    frame.style.transform = transformOriginal;
+  }
 }
 
 /* ============ BIBLIOTHÈQUE DE PHOTOS DE L'ÉTABLISSEMENT ============ */
@@ -4716,64 +4694,6 @@ function supprimerPhotoEtablissement(id){
   renderGaleriePhotosEtablissement();
 }
 
-/* ============ PROGRAMME DU MOIS ============ */
-const MOIS_NOMS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-
-function ajouterEvenementMois(){
-  const dateEl = document.getElementById('evt-date');
-  const titreEl = document.getElementById('evt-titre');
-  const horaireEl = document.getElementById('evt-horaire');
-  const date = dateEl.value;
-  const titre = titreEl.value.trim();
-  const horaire = horaireEl.value.trim();
-  if(!date || !titre){
-    afficherToast("Indiquez au moins une date et un nom d'événement.");
-    return;
-  }
-  DATA.evenementsMois = DATA.evenementsMois || [];
-  DATA.evenementsMois.push({ id: genererId(), date, titre, horaire });
-  DATA.evenementsMois.sort((a,b)=> a.date < b.date ? -1 : 1);
-  sauvegarder();
-  renderEvenementsMois();
-  dateEl.value = ''; titreEl.value = ''; horaireEl.value = '';
-  afficherToast('Événement ajouté.');
-}
-
-function renderEvenementsMois(){
-  const wrap = document.getElementById('evenements-mois-liste');
-  if(!wrap) return;
-  const evts = DATA.evenementsMois || [];
-  if(evts.length === 0){
-    wrap.innerHTML = '<p class="note">Aucun événement enregistré pour l\'instant.</p>';
-    return;
-  }
-  wrap.innerHTML = `<div style="overflow-x:auto;"><table>
-    <thead><tr><th>Date</th><th>Événement</th><th>Horaire</th><th></th></tr></thead>
-    <tbody>${evts.map(e => `<tr>
-      <td>${formatDateFr(e.date)}</td>
-      <td>${escapeHtml(e.titre)}</td>
-      <td>${escapeHtml(e.horaire||'')}</td>
-      <td><button class="icon-btn" title="Supprimer" onclick="supprimerEvenementMois('${e.id}')">🗑</button></td>
-    </tr>`).join('')}</tbody>
-  </table></div>`;
-}
-
-function supprimerEvenementMois(id){
-  DATA.evenementsMois = (DATA.evenementsMois||[]).filter(e=>e.id!==id);
-  sauvegarder();
-  renderEvenementsMois();
-}
-
-function genererAfficheProgramme(){
-  const evts = DATA.evenementsMois || [];
-  if(evts.length === 0){
-    afficherToast("Ajoutez au moins un événement avant de générer l'affiche.");
-    return;
-  }
-  dessinerAfficheProgramme();
-  const canvas = document.getElementById('programmeCanvas');
-  if(canvas) canvas.scrollIntoView({ behavior:'smooth', block:'center' });
-}
 
 /* ============ ASSISTANT IA — IDÉES DE PUBLICATION ============ */
 function sauvegarderPromptSocial(){

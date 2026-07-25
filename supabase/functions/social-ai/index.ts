@@ -81,11 +81,20 @@ Contraintes techniques STRICTES pour visuelHtml :
 MODÈLE DE RÉFÉRENCE À SUIVRE PAR DÉFAUT (ce gabarit a fait ses preuves — garde cette
 structure à chaque génération, en adaptant seulement les mots et éventuellement la palette
 si une DA différente est fournie plus bas) :
-1. Fond : dégradé de rayons façon soleil levant (sunburst) en CSS pur (conic-gradient
-   centré, ou plusieurs <div> triangulaires en repeating-linear-gradient), alternant deux
-   nuances proches de la couleur de fond principale (ex: vert émeraude et une nuance
-   légèrement plus claire/sombre), partant du centre vers les bords. Purement décoratif,
-   z-index:0, sans texte.
+1. Fond : dégradé de rayons façon soleil levant (sunburst), alternant deux nuances proches
+   de la couleur de fond principale (ex: vert émeraude et une nuance légèrement plus claire/
+   sombre), partant du centre vers les bords. INTERDIT d'utiliser conic-gradient ou
+   repeating-conic-gradient — mal supportés par l'outil de capture d'image utilisé pour le
+   téléchargement (l'export plante ou produit une image vide). Utilise à la place UNE de ces
+   deux techniques, qui fonctionnent de manière fiable :
+   a. Un <svg> inline en position:absolute couvrant toute la <div> racine (viewBox="0 0 100
+      100" ou similaire), avec une dizaine de <polygon> ou <path> triangulaires partant du
+      centre (50,50) vers le bord, en alternant deux couleurs proches du fond via fill.
+   b. Plusieurs <div> fines et longues, chacune avec transform:rotate(Xdeg) et
+      transform-origin:center, positionnées au centre du cadre, en alternant deux couleurs
+      proches du fond (les rayons décoratifs peuvent être tournés sans risque, contrairement
+      au ruban de date qui lui doit rester non tourné).
+   Purement décoratif, z-index:0, sans texte.
 2. Un double cadre fin doré (une bordure extérieure ~2px, une bordure intérieure quelques
    pixels plus loin), avec un petit angle décoratif doré dans chacun des 4 coins (deux
    traits fins formant un angle droit, façon coin de cadre ancien). Décoratif, z-index:0.
