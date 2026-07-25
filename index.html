@@ -5265,6 +5265,9 @@ function enregistrerComptage(){
   const existant = DATA.comptages.find(c=>c.date===date);
   if(existant){
     if(!confirm(`Un comptage existe déjà pour le ${formatDateFr(date)}. Le remplacer ?`)) return;
+    const { id: idAncien, historique: histAncien, ...versionPrecedente } = existant;
+    existant.historique = existant.historique || [];
+    existant.historique.push({ modifieLe: new Date().toISOString(), ...versionPrecedente });
     Object.assign(existant, entree, {id: existant.id});
   }else{
     DATA.comptages.push(entree);
@@ -5312,6 +5315,7 @@ function renderComptageHistorique(){
       <td class="num ${ecartCarteClass}">${ecartCarteTxt}</td>
       <td>
         <button class="icon-btn" title="Modifier" onclick="chargerComptagePourEdition('${c.id}')">✏️</button>
+        ${c.historique && c.historique.length > 0 ? `<button class="icon-btn" title="Voir l'historique des modifications" onclick="afficherHistoriqueComptage('${c.id}')">🕒</button>` : ''}
         <button class="icon-btn" title="Supprimer" onclick="supprimerComptage('${c.id}')">🗑</button>
       </td>
     </tr>`;
@@ -5320,6 +5324,33 @@ function renderComptageHistorique(){
     <thead><tr><th>Date</th><th class="num">Fond de caisse</th><th class="num">Total compté</th><th class="num">Espèces indiquées</th><th class="num">Écart esp.</th><th class="num">Écart CB</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
+}
+
+function afficherHistoriqueComptage(id){
+  const c = DATA.comptages.find(x=>x.id===id);
+  if(!c || !c.historique || c.historique.length === 0){
+    afficherToast('Aucun historique pour ce comptage.');
+    return;
+  }
+  const contenu = document.getElementById('historiqueComptageContenu');
+  const versions = c.historique.slice().reverse();
+  contenu.innerHTML = `<p class="note">Comptage du ${formatDateFr(c.date)} — ${versions.length} version${versions.length>1?'s':''} précédente${versions.length>1?'s':''} avant la valeur actuelle (visible dans le tableau).</p>
+    <div style="overflow-x:auto;"><table>
+      <thead><tr><th>Modifié le</th><th class="num">Fond de caisse</th><th class="num">Total compté</th><th class="num">Espèces indiquées</th><th class="num">Écart esp.</th><th class="num">Écart CB</th></tr></thead>
+      <tbody>${versions.map(v => `<tr>
+        <td>${new Date(v.modifieLe).toLocaleString('fr-FR')}</td>
+        <td class="num">${formatEuro(v.fondCaisse||0)}</td>
+        <td class="num">${formatEuro(v.totalCompte||0)}</td>
+        <td class="num">${formatEuro(v.caIndique||0)}</td>
+        <td class="num">${formatEuro(v.ecart||0)}</td>
+        <td class="num">${formatEuro(v.ecartCarte||0)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  document.getElementById('historiqueComptageOverlay').style.display = 'flex';
+}
+
+function fermerHistoriqueComptage(){
+  document.getElementById('historiqueComptageOverlay').style.display = 'none';
 }
 
 function renderComptageTab(){
@@ -6623,6 +6654,14 @@ initSync();
   <div style="position:relative;">
     <img id="apercuVisuelImg" alt="Aperçu du visuel">
     <button class="btn ghost" style="position:absolute;top:-46px;right:0;background:var(--paper);" onclick="fermerApercuVisuel()">✕ Fermer</button>
+  </div>
+</div>
+
+<div class="video-overlay" id="historiqueComptageOverlay" onclick="if(event.target===this) fermerHistoriqueComptage()">
+  <div style="background:var(--paper);border-radius:8px;padding:24px;max-width:90vw;max-height:85vh;overflow:auto;position:relative;">
+    <button class="btn ghost" style="position:absolute;top:16px;right:16px;" onclick="fermerHistoriqueComptage()">✕ Fermer</button>
+    <h2 style="margin-top:0;">Historique des modifications</h2>
+    <div id="historiqueComptageContenu"></div>
   </div>
 </div>
 
