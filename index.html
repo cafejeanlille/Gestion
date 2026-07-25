@@ -1774,13 +1774,47 @@
           <div class="value" id="alcool-cout-dose">—</div>
           <div class="stat-sub" id="alcool-marge-dose">—</div>
         </div>
-        <div class="stat-box accent">
-          <div class="label" id="alcool-label-bouteille">Bouteille entière — coût / marge</div>
-          <div class="value" id="alcool-cout-bouteille">—</div>
-          <div class="stat-sub" id="alcool-marge-bouteille">—</div>
+      </div>
+      <p class="note">Le prix d'achat utilisé est celui de la bouteille (colonne "Prix d'achat" du stock). La marge par verre/dose calculée ici s'affiche aussi en direct dans le tableau "Stock actuel" ci-dessous (l'alcool fort n'étant pas vendu en bouteille entière, seule la dose est affichée).</p>
+    </div>
+
+    <div class="card">
+      <h2>Sirop au verre</h2>
+      <p class="sub">Pour les bouteilles de sirop (catégorie "Sirop") diluées dans un verre/une boisson (perte de 5% par défaut).</p>
+      <div class="form-grid" style="margin-bottom:14px;">
+        <div>
+          <label for="sirop-produit">Produit (sirop)</label>
+          <select id="sirop-produit" onchange="chargerSiropPourProduit()"><option value="">— Sélectionnez un produit —</option></select>
+        </div>
+        <div>
+          <label for="sirop-volume">Volume bouteille (cl)</label>
+          <input type="number" id="sirop-volume" min="0" step="1" class="qty-input" placeholder="100" oninput="majCalculSirop()">
+        </div>
+        <div>
+          <label for="sirop-dose">Volume de la dose (cl)</label>
+          <input type="number" id="sirop-dose" min="0" step="0.5" class="qty-input" placeholder="4" oninput="majCalculSirop()">
+        </div>
+        <div>
+          <label for="sirop-perte">Perte (%)</label>
+          <input type="number" id="sirop-perte" min="0" max="100" step="0.1" class="qty-input" value="5" oninput="majCalculSirop()">
+        </div>
+        <div>
+          <label for="sirop-vente-dose">Prix de vente du verre (€)</label>
+          <input type="number" id="sirop-vente-dose" min="0" step="0.01" class="qty-input" placeholder="0.00" oninput="majCalculSirop()">
         </div>
       </div>
-      <p class="note">Le prix d'achat utilisé est celui de la bouteille (colonne "Prix d'achat" du stock). Pour la bouteille entière, le prix de vente utilisé est celui de la colonne "Prix de vente" du stock, sans perte appliquée. La marge par verre/dose et par bouteille calculée ici s'affiche aussi en direct dans le tableau "Stock actuel" ci-dessous.</p>
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="label">Coût par cl (perte incluse)</div>
+          <div class="value" id="sirop-cout-cl">—</div>
+        </div>
+        <div class="stat-box accent">
+          <div class="label" id="sirop-label-dose">Verre — coût / marge</div>
+          <div class="value" id="sirop-cout-dose">—</div>
+          <div class="stat-sub" id="sirop-marge-dose">—</div>
+        </div>
+      </div>
+      <p class="note">Le prix d'achat utilisé est celui de la bouteille (colonne "Prix d'achat" du stock). La marge par verre calculée ici s'affiche aussi en direct dans le tableau "Stock actuel" ci-dessous (le sirop n'étant pas vendu en bouteille entière, seule la dose est affichée).</p>
     </div>
 
     <div class="card">
@@ -3894,7 +3928,6 @@ function majCalculAlcool(){
   const perte = parseFloat(document.getElementById('alcool-perte').value) || 0;
   const prixVenteDose = parseFloat(document.getElementById('alcool-vente-dose').value) || 0;
   const prixAchatBouteille = p ? (p.prixAchat || 0) : 0;
-  const prixVenteBouteille = p ? (p.prixVente || 0) : 0;
 
   if(id){
     DATA.alcoolsVerre = DATA.alcoolsVerre || {};
@@ -3924,22 +3957,79 @@ function majCalculAlcool(){
       margeDoseEl.textContent = "Renseignez le prix d'achat de la bouteille et le prix de vente";
     }
   }
+}
 
-  // Bouteille vendue entière et directement : pas de perte (contrairement au service au verre).
-  const labelBouteilleEl = document.getElementById('alcool-label-bouteille');
-  const coutBouteilleEl = document.getElementById('alcool-cout-bouteille');
-  const margeBouteilleEl = document.getElementById('alcool-marge-bouteille');
-  if(labelBouteilleEl) labelBouteilleEl.textContent = volume > 0 ? `Bouteille ${volume}cl — coût / marge` : 'Bouteille entière — coût / marge';
-  if(coutBouteilleEl) coutBouteilleEl.textContent = prixAchatBouteille > 0 ? formatEuro(prixAchatBouteille) : '—';
-  if(margeBouteilleEl){
-    if(prixAchatBouteille > 0 && prixVenteBouteille > 0){
-      const margeB = prixVenteBouteille - prixAchatBouteille;
-      const margeBPct = prixVenteBouteille > 0 ? (margeB / prixVenteBouteille) * 100 : 0;
-      margeBouteilleEl.textContent = `Marge : ${formatEuro(margeB)} (${formatPct(margeBPct)})`;
+/* ---- Sirop au verre (dilué dans une boisson, perte 5% par défaut) ---- */
+function renderSiropSelect(){
+  const sel = document.getElementById('sirop-produit');
+  if(!sel) return;
+  const valeurActuelle = sel.value;
+  const produitsSirop = DATA.produits.filter(p => p.categorie === 'Sirop');
+  sel.innerHTML = '<option value="">— Sélectionnez un produit —</option>' +
+    produitsSirop.map(p => `<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('');
+  if(valeurActuelle && produitsSirop.some(p => p.id === valeurActuelle)) sel.value = valeurActuelle;
+}
+
+function chargerSiropPourProduit(){
+  const id = document.getElementById('sirop-produit').value;
+  const p = DATA.produits.find(x => x.id === id);
+  DATA.siropsVerre = DATA.siropsVerre || {};
+  const volumeEl = document.getElementById('sirop-volume');
+  const doseEl = document.getElementById('sirop-dose');
+  const perteEl = document.getElementById('sirop-perte');
+  const venteEl = document.getElementById('sirop-vente-dose');
+  if(!id || !p){
+    volumeEl.value = ''; doseEl.value = ''; perteEl.value = '5'; venteEl.value = '';
+    majCalculSirop();
+    return;
+  }
+  const etat = DATA.siropsVerre[id];
+  if(etat){
+    volumeEl.value = etat.volumeCl || 100;
+    doseEl.value = etat.doseCl || 4;
+    perteEl.value = etat.pertePct != null ? etat.pertePct : 5;
+    venteEl.value = etat.prixVenteDose || '';
+  }else{
+    volumeEl.value = 100; doseEl.value = 4; perteEl.value = 5; venteEl.value = '';
+  }
+  majCalculSirop();
+}
+
+function majCalculSirop(){
+  const id = document.getElementById('sirop-produit').value;
+  const p = DATA.produits.find(x => x.id === id);
+  const volume = parseFloat(document.getElementById('sirop-volume').value) || 0;
+  const dose = parseFloat(document.getElementById('sirop-dose').value) || 0;
+  const perte = parseFloat(document.getElementById('sirop-perte').value) || 0;
+  const prixVenteDose = parseFloat(document.getElementById('sirop-vente-dose').value) || 0;
+  const prixAchatBouteille = p ? (p.prixAchat || 0) : 0;
+
+  if(id){
+    DATA.siropsVerre = DATA.siropsVerre || {};
+    DATA.siropsVerre[id] = { volumeCl: volume, doseCl: dose, pertePct: perte, prixVenteDose: prixVenteDose };
+    sauvegarder();
+    renderStockTable();
+  }
+
+  const volumeUtileCl = volume * (1 - perte / 100);
+  const coutParCl = volumeUtileCl > 0 ? prixAchatBouteille / volumeUtileCl : 0;
+  const coutDose = coutParCl * dose;
+  const coutClEl = document.getElementById('sirop-cout-cl');
+  const coutDoseEl = document.getElementById('sirop-cout-dose');
+  const margeDoseEl = document.getElementById('sirop-marge-dose');
+  const labelDoseEl = document.getElementById('sirop-label-dose');
+  if(labelDoseEl) labelDoseEl.textContent = dose > 0 ? `Verre ${dose}cl — coût / marge` : 'Verre — coût / marge';
+  if(coutClEl) coutClEl.textContent = coutParCl > 0 ? formatEuro(coutParCl) : '—';
+  if(coutDoseEl) coutDoseEl.textContent = coutParCl > 0 ? formatEuro(coutDose) : '—';
+  if(margeDoseEl){
+    if(coutParCl > 0 && prixVenteDose > 0){
+      const marge = prixVenteDose - coutDose;
+      const margePct = prixVenteDose > 0 ? (marge / prixVenteDose) * 100 : 0;
+      margeDoseEl.textContent = `Marge : ${formatEuro(marge)} (${formatPct(margePct)})`;
     }else if(!p){
-      margeBouteilleEl.textContent = 'Sélectionnez un produit';
+      margeDoseEl.textContent = 'Sélectionnez un produit';
     }else{
-      margeBouteilleEl.textContent = "Renseignez le prix d'achat et le prix de vente de la bouteille";
+      margeDoseEl.textContent = "Renseignez le prix d'achat de la bouteille et le prix de vente";
     }
   }
 }
@@ -3984,16 +4074,20 @@ function margeVerreProduit(p){
     const volumeUtileCl = alcool.volumeCl * (1 - (alcool.pertePct || 0) / 100);
     const coutParCl = volumeUtileCl > 0 ? (p.prixAchat || 0) / volumeUtileCl : 0;
     const coutDose = coutParCl * alcool.doseCl;
-    const ligneDose = alcool.prixVenteDose > 0
+    const texte = alcool.prixVenteDose > 0
       ? `Verre ${alcool.doseCl}cl : ${formatEuro(alcool.prixVenteDose - coutDose)}`
-      : (coutParCl > 0 ? `Verre ${alcool.doseCl}cl : coût ${formatEuro(coutDose)}` : null);
-    // Bouteille vendue entière et directement : pas de perte appliquée.
-    const coutBouteille = p.prixAchat || 0;
-    const ligneBouteille = (coutBouteille > 0 && p.prixVente > 0)
-      ? `Bouteille ${alcool.volumeCl}cl : ${formatEuro(p.prixVente - coutBouteille)}`
-      : null;
-    const lignes = [ligneDose, ligneBouteille].filter(Boolean);
-    return { type: 'alcool', texte: lignes.length ? lignes.join(' · ') : '—' };
+      : (coutParCl > 0 ? `Verre ${alcool.doseCl}cl : coût ${formatEuro(coutDose)}` : '—');
+    return { type: 'alcool', texte };
+  }
+  const sirop = DATA.siropsVerre && DATA.siropsVerre[p.id];
+  if(sirop && sirop.volumeCl > 0 && sirop.doseCl > 0){
+    const volumeUtileCl = sirop.volumeCl * (1 - (sirop.pertePct || 0) / 100);
+    const coutParCl = volumeUtileCl > 0 ? (p.prixAchat || 0) / volumeUtileCl : 0;
+    const coutDose = coutParCl * sirop.doseCl;
+    const texte = sirop.prixVenteDose > 0
+      ? `Verre ${sirop.doseCl}cl : ${formatEuro(sirop.prixVenteDose - coutDose)}`
+      : (coutParCl > 0 ? `Verre ${sirop.doseCl}cl : coût ${formatEuro(coutDose)}` : '—');
+    return { type: 'sirop', texte };
   }
   return null;
 }
@@ -4018,6 +4112,7 @@ function renderStockTable(){
   renderFutSelect();
   renderVinSelect();
   renderAlcoolSelect();
+  renderSiropSelect();
   const wrap = document.getElementById('stock-table-wrap');
   if(DATA.produits.length === 0){
     wrap.innerHTML = `<div class="empty-state"><div class="display">Aucun produit pour l'instant</div>Ajoutez votre premier produit ci-dessus.</div>`;
@@ -4039,8 +4134,10 @@ function renderStockTable(){
     const margeVerre = margeVerreProduit(p);
     let margeCell;
     if(margeVerre){
-      const icone = margeVerre.type === 'fut' ? '🍺' : (margeVerre.type === 'alcool' ? '🥃' : '🍷');
-      const fond = margeVerre.type === 'fut' ? '#EFE3C7' : (margeVerre.type === 'alcool' ? '#EFD9B4' : '#F1E0D8');
+      const ICONES_MARGE = { fut: '🍺', alcool: '🥃', sirop: '🥤', vin: '🍷' };
+      const FONDS_MARGE = { fut: '#EFE3C7', alcool: '#EFD9B4', sirop: '#DCEAE3', vin: '#F1E0D8' };
+      const icone = ICONES_MARGE[margeVerre.type] || '🍷';
+      const fond = FONDS_MARGE[margeVerre.type] || '#F1E0D8';
       margeCell = `<span class="badge" style="white-space:normal;background:${fond};color:var(--ink);">${icone} ${escapeHtml(margeVerre.texte)}</span>`;
     }else{
       const margeSimple = (p.prixVente || 0) - (p.prixAchat || 0);
