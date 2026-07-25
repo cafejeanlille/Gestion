@@ -6,15 +6,15 @@
 <title>Café Jean — Registre de Stock</title>
 <style>
   :root{
-    --paper:#FAF7F0;
-    --paper-2:#F1EBDD;
-    --ink:#23302A;
-    --ink-soft:#5B6960;
-    --emerald:#2F6F4E;
-    --emerald-dark:#20503A;
+    --paper:#F7EFDC;
+    --paper-2:#EFE3C7;
+    --ink:#3A1210;
+    --ink-soft:#6E5644;
+    --emerald:#4A1418;
+    --emerald-dark:#2E0D0C;
     --rust:#B5482C;
-    --gold:#C9A227;
-    --line:#D8D0C0;
+    --gold:#C1912F;
+    --line:#DDD0AC;
     --white:#FFFFFF;
   }
   *{box-sizing:border-box;}
@@ -26,10 +26,10 @@
     min-height:100vh;
   }
   .num, table td.num, .ticket, .ticket *{
-    font-family:'SF Mono','Consolas','Menlo','Courier New', monospace;
+    font-family:'IBM Plex Mono','SF Mono','Consolas','Menlo','Courier New', monospace;
   }
   h1,h2,h3, .display{
-    font-family:'Iowan Old Style','Palatino Linotype', Georgia, serif;
+    font-family:'Playfair Display','Iowan Old Style','Palatino Linotype', Georgia, serif;
   }
 
   header.app-header{
@@ -210,7 +210,7 @@
   }
   textarea{ resize:vertical; }
   input[type="number"].qty-input{
-    font-family:'SF Mono','Consolas',monospace;
+    font-family:'IBM Plex Mono','SF Mono','Consolas',monospace;
   }
 
   button.btn{
@@ -313,7 +313,7 @@
     font-size:11px;
     font-weight:700;
   }
-  .badge.ok{ background:#E4F0E9; color:var(--emerald-dark); }
+  .badge.ok{ background:#F1E0D8; color:var(--emerald-dark); }
   .badge.warn{ background:#F6E7DF; color:var(--rust); }
 
   .stats-row{
@@ -332,27 +332,27 @@
     font-size:11px;
     text-transform:uppercase;
     letter-spacing:0.4px;
-    color:#B9C2BA;
+    color:#DDC4A8;
     margin-bottom:6px;
   }
   .stat-box .value{
-    font-family:'SF Mono','Consolas',monospace;
+    font-family:'IBM Plex Mono','SF Mono','Consolas',monospace;
     font-size:22px;
     font-weight:700;
   }
   .stat-box.accent{ background:var(--emerald); }
-  .stat-box.accent .label{ color:#D6EADD; }
+  .stat-box.accent .label{ color:#E8D3C4; }
   .stat-box.gold{ background:var(--gold); color:var(--ink); }
-  .stat-box.gold .label{ color:#5c4a10; }
+  .stat-box.gold .label{ color:#4A3208; }
   .stat-box .value#resteAtteindre{ font-size:15px; line-height:1.3; }
   .stat-box .stat-sub{
     font-size:11px;
-    color:#B9C2BA;
+    color:#DDC4A8;
     margin-top:4px;
     line-height:1.4;
   }
-  .stat-box.gold .stat-sub{ color:#5c4a10; }
-  .stat-box.accent .stat-sub{ color:#D6EADD; }
+  .stat-box.gold .stat-sub{ color:#4A3208; }
+  .stat-box.accent .stat-sub{ color:#E8D3C4; }
   .stats-caption{
     font-size:12px;
     color:var(--ink-soft);
@@ -374,7 +374,7 @@
     max-width:100%;
     padding:20px 22px 26px 22px;
     color:var(--ink);
-    box-shadow:0 4px 14px rgba(35,48,42,0.12);
+    box-shadow:0 4px 14px rgba(58,18,16,0.14);
     position:relative;
   }
   .ticket::before, .ticket::after{
@@ -1041,14 +1041,14 @@
               <path d="M6,4 H94 V22 C94,40 84,40 80,26 C76,44 68,52 50,52 C32,52 24,44 20,26 C16,40 6,40 6,22 Z"/>
             </clipPath>
             <linearGradient id="slipFillGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#6fae8c"/>
-              <stop offset="55%" stop-color="#2F6F4E"/>
-              <stop offset="100%" stop-color="#20503A"/>
+              <stop offset="0%" stop-color="#8a4a48"/>
+              <stop offset="55%" stop-color="#4A1418"/>
+              <stop offset="100%" stop-color="#2E0D0C"/>
             </linearGradient>
             <linearGradient id="slipFillGradientPlein" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#d9bb4e"/>
-              <stop offset="55%" stop-color="#C9A227"/>
-              <stop offset="100%" stop-color="#8a6f1a"/>
+              <stop offset="0%" stop-color="#dcb15a"/>
+              <stop offset="55%" stop-color="#C1912F"/>
+              <stop offset="100%" stop-color="#8a6a1f"/>
             </linearGradient>
           </defs>
           <path class="slip-outline" d="M6,4 H94 V22 C94,40 84,40 80,26 C76,44 68,52 50,52 C32,52 24,44 20,26 C16,40 6,40 6,22 Z"/>
@@ -1721,7 +1721,7 @@
       <td class="num"><input type="number" step="0.01" min="0" style="text-align:right" value="1.4" onchange="modifierProduit(&#39;p_mrhblxvi_e9min&#39;,&#39;prixAchat&#39;,this.value)"></td>
       <td class="num"><input type="number" step="0.01" min="0" style="text-align:right" value="5.5" onchange="modifierProduit(&#39;p_mrhblxvi_e9min&#39;,&#39;prixVente&#39;,this.value)"></td>
       <td class="num">19,60 €</td>
-      <td class="num"><span class="badge" style="white-space:normal;background:#E4F0E9;color:var(--ink);">🍷 Verre 12cl : coût 0,24 €</span></td>
+      <td class="num"><span class="badge" style="white-space:normal;background:#F1E0D8;color:var(--ink);">🍷 Verre 12cl : coût 0,24 €</span></td>
       <td><span class="badge ok">OK</span></td>
       <td><button class="icon-btn" title="Supprimer" onclick="supprimerProduit(&#39;p_mrhblxvi_e9min&#39;)">🗑</button></td>
     </tr><tr class="">
@@ -2234,7 +2234,7 @@
       <td class="num"><input type="number" step="0.01" min="0" style="text-align:right" value="4" onchange="modifierProduit(&#39;p_mrjn0873_rsmwt&#39;,&#39;prixAchat&#39;,this.value)"></td>
       <td class="num"><input type="number" step="0.01" min="0" style="text-align:right" value="0" onchange="modifierProduit(&#39;p_mrjn0873_rsmwt&#39;,&#39;prixVente&#39;,this.value)"></td>
       <td class="num">28,00 €</td>
-      <td class="num"><span class="badge" style="white-space:normal;background:#E4F0E9;color:var(--ink);">🍷 Verre 12cl : 4,83 €</span></td>
+      <td class="num"><span class="badge" style="white-space:normal;background:#F1E0D8;color:var(--ink);">🍷 Verre 12cl : 4,83 €</span></td>
       <td><span class="badge ok">OK</span></td>
       <td><button class="icon-btn" title="Supprimer" onclick="supprimerProduit(&#39;p_mrjn0873_rsmwt&#39;)">🗑</button></td>
     </tr><tr class="low-stock">
@@ -3800,7 +3800,7 @@ function renderStockTable(){
     let margeCell;
     if(margeVerre){
       const icone = margeVerre.type === 'fut' ? '🍺' : '🍷';
-      const fond = margeVerre.type === 'fut' ? '#F1EBDD' : '#E4F0E9';
+      const fond = margeVerre.type === 'fut' ? '#EFE3C7' : '#F1E0D8';
       margeCell = `<span class="badge" style="white-space:normal;background:${fond};color:var(--ink);">${icone} ${escapeHtml(margeVerre.texte)}</span>`;
     }else{
       const margeSimple = (p.prixVente || 0) - (p.prixAchat || 0);
