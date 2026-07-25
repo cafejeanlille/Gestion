@@ -96,8 +96,15 @@ si une DA différente est fournie plus bas) :
       au ruban de date qui lui doit rester non tourné).
    Purement décoratif, z-index:0, sans texte.
 2. Un double cadre fin doré (une bordure extérieure ~2px, une bordure intérieure quelques
-   pixels plus loin), avec un petit angle décoratif doré dans chacun des 4 coins (deux
-   traits fins formant un angle droit, façon coin de cadre ancien). Décoratif, z-index:0.
+   pixels plus loin), avec un petit angle décoratif doré dans chacun des 4 coins. CONSTRUCTION
+   OBLIGATOIRE de chaque angle : DEUX <div> séparés et petits, PAS un seul gros <div> avec
+   border+clip-path (ça produit un grand carré/rectangle visible, jamais un angle fin — piège
+   fréquent à éviter absolument). Pour un coin, par exemple en haut à gauche : un <div>
+   position:absolute;top:20px;left:20px;width:40px;height:2px;background-color:${PALETTE.gold}
+   (le trait horizontal) ET un second <div> position:absolute;top:20px;left:20px;width:2px;
+   height:40px;background-color:${PALETTE.gold} (le trait vertical) — les deux ensemble forment
+   un petit angle droit de ~40px, sans aucun grand cadre visible autour. Adapte les coordonnées
+   (top/bottom, left/right) pour les 4 coins. Décoratif, z-index:0.
 3. Conteneur de texte flex (voir RÈGLE ANTI-CHEVAUCHEMENT plus bas) avec, dans l'ordre,
    en enfants directs :
    a. Le logo ({{LOGO_CAFE_JEAN}} dans une <div> ~180-220px de large) ou "CAFÉ JEAN" stylisé.
