@@ -4953,7 +4953,7 @@ function renderPlouvierTab(){
           <td><button class="icon-btn" title="Retirer de la liste" onclick="supprimerProduitPlouvier('${p.id}')">🗑</button></td>
         </tr>`;
   }).join('');
-  wrap.innerHTML = `<table>
+  wrap.innerHTML = `<div style="overflow-x:auto;"><table style="min-width:640px;">
     <thead><tr><th>Produit</th><th>Quantité</th><th>Prix HT (unité)</th><th>Total HT</th><th>TVA 20%</th><th>Total TTC</th><th></th></tr></thead>
     <tbody>${lignes}</tbody>
     <tfoot>
@@ -4965,7 +4965,7 @@ function renderPlouvierTab(){
         <td></td>
       </tr>
     </tfoot>
-  </table>`;
+  </table></div>`;
 }
 
 function modifierEmailPlouvier(valeur){
