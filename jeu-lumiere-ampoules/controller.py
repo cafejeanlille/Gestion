@@ -142,17 +142,30 @@ class LightShow:
         import sounddevice as sd
 
         await self._turn_all(True)
-        hue = self.params.get("hue", 280)
         volume = 0.0
 
         def audio_callback(indata, frames, time_info, status):
             nonlocal volume
             volume = float(np.sqrt(np.mean(indata**2)))
 
+        eclairables = [dev for dev in self.bulbs if Module.Light in dev.modules]
+        n = max(len(eclairables), 1)
+        base_hue = 0.0
+
         with sd.InputStream(channels=1, callback=audio_callback, samplerate=44100):
             while not self._stop_event.is_set():
-                brightness = min(100, max(8, int(volume * 900)))
-                await self._set_all(hue, 100, brightness)
+                brightness = min(100, max(30, int(volume * 900)))
+                # Les couleurs tournent en continu ; le son accélère la rotation.
+                base_hue = (base_hue + 10 + volume * 80) % 360
+                await asyncio.gather(
+                    *(
+                        dev.modules[Module.Light].set_hsv(
+                            int((base_hue + i * (360 / n)) % 360), 100, brightness
+                        )
+                        for i, dev in enumerate(eclairables)
+                    ),
+                    return_exceptions=True,
+                )
                 await self._wait(0.15)
 
     def status(self):

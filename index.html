@@ -6683,9 +6683,7 @@ async function lumiereDemarrer(){
   if(!url){ lumiereStatut('Renseigne d\'abord l\'adresse du serveur ci-dessus.', 'err'); return; }
   const params = {};
   const couleurHex = document.getElementById('lumiere-color').value;
-  if(lumiereEffetChoisi === 'son'){
-    params.hue = hexVersHsv(couleurHex)[0];
-  } else if(lumiereEffetChoisi !== 'arc_en_ciel'){
+  if(lumiereEffetChoisi !== 'arc_en_ciel' && lumiereEffetChoisi !== 'son'){
     params.color = hexVersHsv(couleurHex);
   }
   if(lumiereEffetChoisi === 'arc_en_ciel' || lumiereEffetChoisi === 'strobe'){

@@ -188,9 +188,7 @@ document.getElementById('day-mode-btn').onclick = async () => {
 
 document.getElementById('start-btn').onclick = async () => {
   const params = {};
-  if(selectedEffect === 'son'){
-    params.hue = hexToHsv(document.getElementById('color').value)[0];
-  } else if(selectedEffect !== 'arc_en_ciel'){
+  if(selectedEffect !== 'arc_en_ciel' && selectedEffect !== 'son'){
     params.color = hexToHsv(document.getElementById('color').value);
   }
   if(selectedEffect === 'arc_en_ciel' || selectedEffect === 'strobe'){
