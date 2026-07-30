@@ -944,6 +944,29 @@
     color:var(--white);
     border-color:var(--emerald);
   }
+  #tab-lumiere .template-choix{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-bottom:0;
+  }
+  #tab-lumiere .template-choix button{
+    padding:8px 14px;
+    border-radius:20px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--ink-soft);
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  #tab-lumiere .template-choix button.active{
+    background:var(--emerald);
+    color:var(--white);
+    border-color:var(--emerald);
+  }
+  #tab-lumiere #lumiere-statut.ok{ color:#3f7a3f; }
+  #tab-lumiere #lumiere-statut.err{ color:var(--rust); }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,500&display=swap" rel="stylesheet">
@@ -976,6 +999,7 @@
     <button class="tab-btn" data-tab="plouvier">Commande Plouvier</button>
     <button class="tab-btn" data-tab="previsions">Prévision</button>
     <button class="tab-btn" data-tab="social">Réseaux sociaux</button>
+    <button class="tab-btn" data-tab="lumiere">💡 Lumière</button>
     <button class="tab-btn" data-tab="sauvegarde">Sauvegarde</button>
   </div>
 </nav>
@@ -984,6 +1008,9 @@
 
   <!-- TAB: TABLEAU DE BORD -->
   <section class="tab-panel active" id="tab-dashboard">
+    <div class="comptage-actions-bar" style="margin-bottom:14px;">
+      <button class="btn" onclick="activerOnglet('lumiere')">💡 Lumière</button>
+    </div>
     <div id="alerte-plouvier" class="alerte-plouvier" style="display:none;">
       📦 <span>C'est jeudi — pense à la commande Plouvier !</span>
       <button class="btn" onclick="activerOnglet('plouvier')">Aller à la commande</button>
@@ -3046,6 +3073,50 @@
 
   </section>
 
+  <!-- TAB: LUMIÈRE -->
+  <section class="tab-panel" id="tab-lumiere">
+    <div class="card">
+      <h2>💡 Jeu de lumière</h2>
+
+      <div class="form-grid">
+        <div style="grid-column:1/-1;">
+          <label for="lumiere-server-url">Adresse du serveur (affichée au démarrage de l'appli lumière)</label>
+          <input type="text" id="lumiere-server-url" placeholder="http://192.168.1.45:5050" oninput="sauvegarderAdresseLumiere()">
+        </div>
+      </div>
+
+      <div class="comptage-actions-bar" style="margin-top:10px;">
+        <button class="btn ghost" id="lumiere-connect-btn" onclick="lumiereConnecter()">Se connecter aux ampoules</button>
+        <button class="btn ghost" id="lumiere-day-btn" onclick="lumiereModeJournee()" disabled>☀️ Mode journée</button>
+      </div>
+      <p class="note" id="lumiere-statut" style="margin-top:8px;"></p>
+
+      <label style="display:block;margin-top:14px;">Effet</label>
+      <div class="template-choix" id="lumiere-effets">
+        <button type="button" data-effect="statique" class="active" onclick="lumiereChoisirEffet('statique')">Statique</button>
+        <button type="button" data-effect="arc_en_ciel" onclick="lumiereChoisirEffet('arc_en_ciel')">Arc-en-ciel</button>
+        <button type="button" data-effect="strobe" onclick="lumiereChoisirEffet('strobe')">Strobe</button>
+        <button type="button" data-effect="son" onclick="lumiereChoisirEffet('son')">Réactif au son</button>
+      </div>
+
+      <div class="form-grid" style="margin-top:14px;">
+        <div id="lumiere-color-group">
+          <label for="lumiere-color">Couleur</label>
+          <input type="color" id="lumiere-color" value="#8b1a2d" style="width:100%;height:38px;">
+        </div>
+        <div id="lumiere-speed-group" style="display:none;">
+          <label for="lumiere-speed">Vitesse</label>
+          <input type="range" id="lumiere-speed" min="1" max="20" value="6" style="width:100%;">
+        </div>
+      </div>
+
+      <div class="comptage-actions-bar" style="margin-top:14px;">
+        <button class="btn" onclick="lumiereDemarrer()">Démarrer</button>
+        <button class="btn ghost" onclick="lumiereArreter()">Arrêter</button>
+      </div>
+    </div>
+  </section>
+
   <!-- TAB: SAUVEGARDE -->
   <section class="tab-panel" id="tab-sauvegarde">
     <div class="card">
@@ -3527,6 +3598,7 @@ function activerOnglet(tab){
   if(tab === 'charges'){ renderAchatSelect(); renderAchatsTable(); renderChargesFixesTable(); }
   if(tab === 'comptage') renderComptageTab();
   if(tab === 'planning') renderPlanningTab();
+  if(tab === 'lumiere'){ chargerAdresseLumiere(); if(!lumiereDejaConnecte) lumiereConnecter(); }
   if(tab === 'recettes') renderRecettesTab();
   if(tab === 'plouvier') renderPlouvierTab();
   if(tab === 'previsions') renderPrevisionTab();
@@ -6286,6 +6358,11 @@ const SYNC_PUSH_DEBOUNCE_MS = 1500;
 let _syncPushTimer = null;
 let _syncPullTimer = null;
 let _dernierSyncISO = null;
+// Tant que le premier chargement depuis Supabase n'est pas terminé (succès ou échec),
+// on refuse d'écrire vers le serveur : sinon un DATA encore local/par défaut (avant
+// que initSync() ait eu le temps de le remplacer par les vraies données) pourrait être
+// poussé et écraser les données réelles côté serveur.
+let _syncReady = false;
 
 function majStatutSync(etat, quandISO){
   const badge = document.getElementById('sync-badge');
@@ -6341,6 +6418,13 @@ async function pousserVersSupabase(){
 function planifierPushSync(){
   clearTimeout(_syncPushTimer);
   _syncPushTimer = setTimeout(async () => {
+    if(!_syncReady){
+      // Le premier chargement depuis Supabase n'est pas encore terminé : on retente
+      // un peu plus tard plutôt que de risquer d'écraser les vraies données du serveur
+      // avec un DATA local encore par défaut/incomplet.
+      _syncPushTimer = setTimeout(() => planifierPushSync(), 300);
+      return;
+    }
     _syncPushTimer = null;
     try{
       majStatutSync('syncing');
@@ -6403,6 +6487,7 @@ async function initSync(){
   }catch(e){
     majStatutSync('offline');
   }
+  _syncReady = true;
   clearInterval(_syncPullTimer);
   _syncPullTimer = setInterval(() => tirerEtAppliquerSiPlusRecent(false), SYNC_POLL_MS);
 }
@@ -6477,6 +6562,129 @@ function renderTout(){
   renderPlouvierTab();
   renderPrevisionTab();
   renderDashboard();
+}
+
+/* ============ JEU DE LUMIÈRE (ampoules Tapo) ============ */
+let lumiereEffetChoisi = 'statique';
+let lumiereDejaConnecte = false;
+
+function lumiereUrl(){
+  const v = (document.getElementById('lumiere-server-url').value || '').trim().replace(/\/$/, '');
+  return v;
+}
+
+function sauvegarderAdresseLumiere(){
+  localStorage.setItem('lumiereServerUrl', document.getElementById('lumiere-server-url').value.trim());
+}
+
+function chargerAdresseLumiere(){
+  const saved = localStorage.getItem('lumiereServerUrl') || '';
+  const input = document.getElementById('lumiere-server-url');
+  if(input && !input.value) input.value = saved;
+}
+
+function lumiereStatut(msg, kind){
+  const el = document.getElementById('lumiere-statut');
+  if(!el) return;
+  el.textContent = msg;
+  el.className = kind || '';
+}
+
+function lumiereChoisirEffet(eff){
+  lumiereEffetChoisi = eff;
+  document.querySelectorAll('#lumiere-effets button').forEach(b=>b.classList.toggle('active', b.dataset.effect===eff));
+  document.getElementById('lumiere-color-group').style.display = (eff === 'son' || eff === 'arc_en_ciel') ? 'none' : '';
+  document.getElementById('lumiere-speed-group').style.display = (eff === 'arc_en_ciel' || eff === 'strobe') ? '' : 'none';
+}
+
+function hexVersHsv(hex){
+  const r = parseInt(hex.slice(1,3),16)/255, g = parseInt(hex.slice(3,5),16)/255, b = parseInt(hex.slice(5,7),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max-min;
+  let h = 0;
+  if(d !== 0){
+    if(max === r) h = ((g-b)/d) % 6;
+    else if(max === g) h = (b-r)/d + 2;
+    else h = (r-g)/d + 4;
+    h *= 60; if(h < 0) h += 360;
+  }
+  const s = max === 0 ? 0 : d/max;
+  return [Math.round(h), Math.round(s*100), Math.round(max*100)];
+}
+
+async function lumiereConnecter(){
+  const url = lumiereUrl();
+  if(!url){ lumiereStatut('Renseigne d\'abord l\'adresse du serveur ci-dessus.', 'err'); return; }
+  const btn = document.getElementById('lumiere-connect-btn');
+  btn.disabled = true;
+  lumiereStatut('Connexion en cours…');
+  try{
+    const res = await fetch(url + '/api/connect', {method:'POST'});
+    const data = await res.json();
+    if(data.ok){
+      lumiereDejaConnecte = true;
+      lumiereStatut(`${data.bulbs} ampoule(s) connectée(s)`, 'ok');
+      document.getElementById('lumiere-day-btn').disabled = false;
+    } else {
+      lumiereStatut(data.error, 'err');
+    }
+  } catch(e){
+    lumiereStatut('Impossible de joindre le serveur (' + url + '). Vérifie qu\'il tourne et que tu es sur le même Wi-Fi.', 'err');
+  }
+  btn.disabled = false;
+}
+
+async function lumiereModeJournee(){
+  const url = lumiereUrl();
+  if(!url) return;
+  const btn = document.getElementById('lumiere-day-btn');
+  btn.disabled = true;
+  lumiereStatut('Retour au mode journée…');
+  try{
+    const res = await fetch(url + '/api/day_mode', {method:'POST'});
+    const data = await res.json();
+    lumiereStatut(data.ok ? 'Mode journée rétabli' : data.error, data.ok ? 'ok' : 'err');
+  } catch(e){
+    lumiereStatut('Erreur: ' + e, 'err');
+  }
+  btn.disabled = false;
+}
+
+async function lumiereDemarrer(){
+  const url = lumiereUrl();
+  if(!url){ lumiereStatut('Renseigne d\'abord l\'adresse du serveur ci-dessus.', 'err'); return; }
+  const params = {};
+  const couleurHex = document.getElementById('lumiere-color').value;
+  if(lumiereEffetChoisi === 'son'){
+    params.hue = hexVersHsv(couleurHex)[0];
+  } else if(lumiereEffetChoisi !== 'arc_en_ciel'){
+    params.color = hexVersHsv(couleurHex);
+  }
+  if(lumiereEffetChoisi === 'arc_en_ciel' || lumiereEffetChoisi === 'strobe'){
+    params.speed = Number(document.getElementById('lumiere-speed').value);
+    if(lumiereEffetChoisi === 'strobe') params.color = hexVersHsv(couleurHex);
+  }
+  try{
+    const res = await fetch(url + '/api/start', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({effect: lumiereEffetChoisi, params})
+    });
+    const data = await res.json();
+    lumiereStatut(data.ok ? 'Effet lancé' : data.error, data.ok ? 'ok' : 'err');
+  } catch(e){
+    lumiereStatut('Erreur: ' + e, 'err');
+  }
+}
+
+async function lumiereArreter(){
+  const url = lumiereUrl();
+  if(!url) return;
+  try{
+    const res = await fetch(url + '/api/stop', {method:'POST'});
+    const data = await res.json();
+    lumiereStatut(data.ok ? 'Arrêté' : data.error, data.ok ? 'ok' : 'err');
+  } catch(e){
+    lumiereStatut('Erreur: ' + e, 'err');
+  }
 }
 
 renderTout();

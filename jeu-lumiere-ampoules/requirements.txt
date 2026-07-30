@@ -1,0 +1,4 @@
+python-kasa[speedups]
+flask
+sounddevice
+numpy
