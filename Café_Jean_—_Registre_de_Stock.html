@@ -275,6 +275,9 @@
     border-collapse:collapse;
     font-size:14px;
   }
+  #stock-table-wrap, #plouvier-liste-wrap, #comptage-table-wrap{
+    overflow-x:auto;
+  }
   table th{
     text-align:left;
     font-size:11.5px;
@@ -3025,18 +3028,20 @@
 
     <div class="p-section">
       <h3>Résultat par palier de CA</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>CA TTC</th>
-            <th>Charges fixes</th>
-            <th>Charges variables</th>
-            <th>Total charges</th>
-            <th>Résultat</th>
-          </tr>
-        </thead>
-        <tbody id="pTbody"></tbody>
-      </table>
+      <div style="overflow-x:auto;">
+        <table style="min-width:520px;">
+          <thead>
+            <tr>
+              <th>CA TTC</th>
+              <th>Charges fixes</th>
+              <th>Charges variables</th>
+              <th>Total charges</th>
+              <th>Résultat</th>
+            </tr>
+          </thead>
+          <tbody id="pTbody"></tbody>
+        </table>
+      </div>
     </div>
   </section>
 
@@ -5288,10 +5293,10 @@ function renderComptageHistorique(){
       </td>
     </tr>`;
   }).join('');
-  wrap.innerHTML = `<table>
+  wrap.innerHTML = `<div style="overflow-x:auto;"><table style="min-width:640px;">
     <thead><tr><th>Date</th><th class="num">Fond de caisse</th><th class="num">Total compté</th><th class="num">Espèces indiquées</th><th class="num">Écart esp.</th><th class="num">Écart CB</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
-  </table>`;
+  </table></div>`;
 }
 
 function afficherHistoriqueComptage(id){
