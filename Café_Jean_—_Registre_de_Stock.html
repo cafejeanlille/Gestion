@@ -4878,23 +4878,11 @@ function envoyerCommandePlouvier(){
     afficherToast('Aucune quantité renseignée — remplissez au moins un produit avant d\'envoyer.');
     return;
   }
-  const TVA_TAUX = 0.20;
-  let totalHtGlobal = 0;
-  const lignesTexte = produitsCommandes.map(p=>{
-    const totalHt = (p.quantite||0) * (p.prixHT||0);
-    totalHtGlobal += totalHt;
-    const prixTxt = p.prixHT ? ` (PU HT: ${formatEuro(p.prixHT)}, Total HT: ${formatEuro(totalHt)})` : '';
-    return `- ${p.nom} : ${p.quantite}${prixTxt}`;
-  }).join('\n');
-  const tvaGlobal = totalHtGlobal * TVA_TAUX;
-  const ttcGlobal = totalHtGlobal + tvaGlobal;
+  const lignesTexte = produitsCommandes.map(p => `- ${p.nom} : ${p.quantite}`).join('\n');
   const dateFr = formatDateFr(todayIso());
   const sujet = `Commande Café Jean - ${dateFr}`;
   const corps = 'Bonjour,\n\nMerci de préparer la commande suivante :\n\n' +
     lignesTexte +
-    (totalHtGlobal > 0
-      ? `\n\nTotal HT : ${formatEuro(totalHtGlobal)}\nTVA (20%) : ${formatEuro(tvaGlobal)}\nTotal TTC : ${formatEuro(ttcGlobal)}`
-      : '') +
     '\n\nMerci,\nCafé Jean';
   const destinataire = (DATA.commandePlouvier.emailFournisseur || '').trim();
   const lien = `mailto:${destinataire}?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corps)}`;
