@@ -3302,16 +3302,16 @@ function produitsDeDepart(){
   // Quantité et prix d'achat à 0 : à compléter par le café.
   const items = [
     ['Chimay dorée 33cl', 5.5],
-    ['Grisette Bio 25cl', 5.5],
-    ['Orval 33cl', 5.5],
-    ['Kasteel rouge 33cl', 5.5],
-    ['Chouffe 33cl', 5.5],
-    ['Anosteké 33cl', 5.5],
-    ['Duvel 33cl', 5.5],
+    ['Grisette Bio 25cl', 5.5, 0.92],
+    ['Orval 33cl', 5.5, 1.63],
+    ['Kasteel rouge 33cl', 5.5, 1.34],
+    ['Chouffe 33cl', 5.5, 1.45],
+    ['Anosteké 33cl', 5.5, 1.65],
+    ['Duvel 33cl', 5.5, 1.51],
     ['Chimay bleue 33cl', 5.5],
-    ['Westmalle 33cl', 5.5],
+    ['Westmalle 33cl', 5.5, 1.44],
     ['Kino Beer IPA 33cl', 5.5],
-    ['Jupiler 0% 25cl', 3],
+    ['Jupiler 0% 25cl', 3, 0.90],
     ['Saint-Lannes Signature (verre)', 5.5],
     ['Saint-Lannes Signature (bouteille)', 26],
     ['Saint-Lannes Moelleux (verre)', 5.5],
@@ -3356,12 +3356,12 @@ function produitsDeDepart(){
     ['Pomme', 4.5],
     ['Ananas', 4.5],
     ['Tomate', 4.5],
-    ['Coca', 4],
-    ['Coca zéro', 4],
-    ['Orangina', 4],
-    ['Perrier', 4],
-    ['Fuze tea', 4],
-    ['Limonade Villers citron', 3.5],
+    ['Coca', 4, 0.91],
+    ['Coca zéro', 4, 0.80],
+    ['Orangina', 4, 0.90],
+    ['Perrier', 4, 0.96],
+    ['Fuze tea', 4, 0.79],
+    ['Limonade Villers citron', 3.5, 0.49],
     ['ChariTea Green', 5],
     ['ChariTea Red', 5],
     ['ChariTea Black', 5],
@@ -3374,8 +3374,43 @@ function produitsDeDepart(){
     ['Kombucha Gingembre & Framboise', 5],
     ['Kombucha Framboise-Menthe & Astragale', 5],
   ];
-  return items.map(([nom, prixVente]) => ({
-    id: genererId(), nom, quantite: 0, prixAchat: 0, prixVente
+  return items.map(([nom, prixVente, prixAchat]) => ({
+    id: genererId(), nom, quantite: 0, prixAchat: prixAchat || 0, prixVente
+  }));
+}
+
+function produitsPlouvierDeDepart(){
+  // Repris des dernières factures Plouvier (juin-juillet 2026) : code article,
+  // désignation et prix unitaire HT (prix produit + accise incluse, hors TVA).
+  const items = [
+    ['2069 — BIO Saison Dupont Fût 20L (5.5°)', 67.37],
+    ['2506 — Martha Sexy Blond Fût 20L (8°)', 81.70],
+    ['2553 — Norsse IPA Fût 20L (6°)', 54.94],
+    ['3029 — Hommelbier Fût 30L (7.5°)', 77.26],
+    ['3041 — Roman Pils Fût 30L (5°)', 55.02],
+    ['1014 — Duvel 33cl (8.5°)', 1.51],
+    ['1401 — Grisette Blanche 25cl (5.5°)', 0.92],
+    ['1402 — Grisette Blonde 25cl (5.5°)', 0.93],
+    ['1051 — Orval 33cl (6.2°)', 1.63],
+    ['1270 — Anosteke Bronze 33cl (8°)', 1.65],
+    ['1045 — Westmalle Triple 33cl (9.5°)', 1.44],
+    ['1207 — Kasteel Rouge 33cl (8°)', 1.34],
+    ['1231 — La Chouffe 33cl (8°)', 1.45],
+    ['1023 — Jupiler 0% 25cl', 0.90],
+    ['6011 — Coca Cola 33cl', 0.91],
+    ['6001 — Coca Cola Zero 33cl', 0.80],
+    ['6015 — Orangina 25cl', 0.90],
+    ['6036 — Fuzetea Pêche 25cl', 0.79],
+    ['6067 — Limonade Saint-Amand Villers 20cl', 0.49],
+    ['6006 — Limonade Steff 150cl', 1.01],
+    ['6031 — Schweppes Indian Tonic 150cl', 2.08],
+    ['7001 — Perrier 33cl', 0.96],
+    ['7006 — Vittel 25cl', 0.65],
+    ['4105 — De Notekraker Paprika 5kg', 28.13],
+    ['16002 — Tube Co2 10kg', 48.10],
+  ];
+  return items.map(([nom, prixHT]) => ({
+    id: genererId(), nom, quantite: 0, prixHT
   }));
 }
 
@@ -3388,7 +3423,7 @@ function dataParDefaut(){
     vinsVerre: {},
     recettes: [],
     seauEau: { dernierVidageISO: new Date().toISOString() },
-    commandePlouvier: { produits: [] },
+    commandePlouvier: { produits: produitsPlouvierDeDepart() },
     aProposCafe: '',
     daDescription: '',
     promptSocialLibre: '',
@@ -3411,7 +3446,11 @@ function chargerDonnees(){
     const raw = localStorage.getItem(STORAGE_KEY);
     if(!raw) return dataParDefaut();
     const parsed = JSON.parse(raw);
-    return Object.assign(dataParDefaut(), parsed);
+    const data = Object.assign(dataParDefaut(), parsed);
+    if(!data.commandePlouvier || !Array.isArray(data.commandePlouvier.produits) || data.commandePlouvier.produits.length === 0){
+      data.commandePlouvier = Object.assign({ produits: [] }, data.commandePlouvier, { produits: produitsPlouvierDeDepart() });
+    }
+    return data;
   }catch(e){
     console.error('Erreur de lecture des données', e);
     return dataParDefaut();
@@ -6286,6 +6325,11 @@ const SYNC_PUSH_DEBOUNCE_MS = 1500;
 let _syncPushTimer = null;
 let _syncPullTimer = null;
 let _dernierSyncISO = null;
+// Tant que le premier chargement depuis Supabase n'est pas terminé (succès ou échec),
+// on refuse d'écrire vers le serveur : sinon un DATA encore local/par défaut (avant
+// que initSync() ait eu le temps de le remplacer par les vraies données) pourrait être
+// poussé et écraser les données réelles côté serveur.
+let _syncReady = false;
 
 function majStatutSync(etat, quandISO){
   const badge = document.getElementById('sync-badge');
@@ -6341,6 +6385,13 @@ async function pousserVersSupabase(){
 function planifierPushSync(){
   clearTimeout(_syncPushTimer);
   _syncPushTimer = setTimeout(async () => {
+    if(!_syncReady){
+      // Le premier chargement depuis Supabase n'est pas encore terminé : on retente
+      // un peu plus tard plutôt que de risquer d'écraser les vraies données du serveur
+      // avec un DATA local encore par défaut/incomplet.
+      _syncPushTimer = setTimeout(() => planifierPushSync(), 300);
+      return;
+    }
     _syncPushTimer = null;
     try{
       majStatutSync('syncing');
@@ -6403,6 +6454,7 @@ async function initSync(){
   }catch(e){
     majStatutSync('offline');
   }
+  _syncReady = true;
   clearInterval(_syncPullTimer);
   _syncPullTimer = setInterval(() => tirerEtAppliquerSiPlusRecent(false), SYNC_POLL_MS);
 }
