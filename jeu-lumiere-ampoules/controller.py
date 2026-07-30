@@ -9,11 +9,18 @@ CONFIG_PATH = Path(__file__).parent / "config.json"
 
 EFFECTS = ["statique", "arc_en_ciel", "strobe", "son"]
 
+# Mode journée : teinte "or" de la DA du café (#C1912F), plus tamisée pour le bar
+# et la salle que pour le reste.
+DAY_MODE_HUE = 25
+DAY_MODE_SATURATION = 85
+DAY_MODE_BRIGHTNESS_TAMISE = 50
+DAY_MODE_BRIGHTNESS_NORMALE = 100
+DAY_MODE_PREFIXES_TAMISES = ("bar", "salle")
+
 
 class LightShow:
     def __init__(self):
         self.bulbs = []
-        self.day_states = []
         self.effect = None
         self.params = {}
         self._task = None
@@ -32,26 +39,23 @@ class LightShow:
             await dev.update()
             bulbs.append(dev)
         self.bulbs = bulbs
-        # On garde l'état de chaque ampoule au moment de la connexion pour
-        # pouvoir revenir à cet éclairage "de jour" après un effet.
-        self.day_states = [
-            dev.modules[Module.Light].state if Module.Light in dev.modules else None
-            for dev in bulbs
-        ]
         return len(self.bulbs)
 
     async def restore_day_mode(self):
         if not self.bulbs:
             raise RuntimeError("Pas d'ampoule connectée, appelle connect() d'abord.")
         await self.stop()
-        await asyncio.gather(
-            *(
-                dev.modules[Module.Light].set_state(state)
-                for dev, state in zip(self.bulbs, self.day_states)
-                if state is not None
-            ),
-            return_exceptions=True,
-        )
+        await self._turn_all(True)
+
+        async def _set_one(dev):
+            if Module.Light not in dev.modules:
+                return
+            nom = (dev.alias or "").strip().lower()
+            tamisee = nom.startswith(DAY_MODE_PREFIXES_TAMISES)
+            brightness = DAY_MODE_BRIGHTNESS_TAMISE if tamisee else DAY_MODE_BRIGHTNESS_NORMALE
+            await dev.modules[Module.Light].set_hsv(DAY_MODE_HUE, DAY_MODE_SATURATION, brightness)
+
+        await asyncio.gather(*(_set_one(dev) for dev in self.bulbs), return_exceptions=True)
 
     async def _set_all(self, hue, sat, val):
         await asyncio.gather(
