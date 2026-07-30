@@ -6604,8 +6604,10 @@ function sauvegarderAdresseLumiere(){
   localStorage.setItem('lumiereServerUrl', document.getElementById('lumiere-server-url').value.trim());
 }
 
+const LUMIERE_ADRESSE_DEFAUT = 'http://192.168.1.45:5050';
+
 function chargerAdresseLumiere(){
-  const saved = localStorage.getItem('lumiereServerUrl') || '';
+  const saved = localStorage.getItem('lumiereServerUrl') || LUMIERE_ADRESSE_DEFAUT;
   const input = document.getElementById('lumiere-server-url');
   if(input && !input.value) input.value = saved;
 }
