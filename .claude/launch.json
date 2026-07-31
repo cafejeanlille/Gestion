@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "cafe-jean-static",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "-l", "8080", "."],
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8080"],
       "port": 8080
     }
   ]

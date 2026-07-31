@@ -998,6 +998,73 @@
   }
   #tab-lumiere #lumiere-statut.ok{ color:#3f7a3f; }
   #tab-lumiere #lumiere-statut.err{ color:var(--rust); }
+  .lumiere-secteur{
+    border:1px solid var(--line);
+    border-radius:10px;
+    margin-top:10px;
+    overflow:hidden;
+  }
+  .lumiere-secteur-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:10px 14px;
+    background:var(--paper-2);
+    cursor:pointer;
+    font-weight:700;
+    font-size:13.5px;
+  }
+  .lumiere-secteur-header .chevron{
+    transition:transform 0.2s ease;
+    color:var(--ink-soft);
+    font-size:12px;
+  }
+  .lumiere-secteur.open .lumiere-secteur-header .chevron{ transform:rotate(180deg); }
+  .lumiere-secteur-corps{ display:none; }
+  .lumiere-secteur.open .lumiere-secteur-corps{ display:block; }
+  .lumiere-ampoule-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:9px 14px;
+    border-top:1px solid var(--line);
+    font-size:13.5px;
+  }
+  .lumiere-ampoule-row.disabled{ opacity:0.5; }
+  .lumiere-toggle{
+    position:relative;
+    display:inline-block;
+    width:38px;
+    height:22px;
+    flex-shrink:0;
+  }
+  .lumiere-toggle input{
+    opacity:0;
+    width:0;
+    height:0;
+  }
+  .lumiere-toggle .track{
+    position:absolute;
+    inset:0;
+    background:var(--line);
+    border-radius:22px;
+    transition:background 0.2s ease;
+  }
+  .lumiere-toggle .track::before{
+    content:'';
+    position:absolute;
+    width:16px;
+    height:16px;
+    left:3px;
+    top:3px;
+    background:var(--white);
+    border-radius:50%;
+    transition:transform 0.2s ease;
+  }
+  .lumiere-toggle input:checked + .track{ background:var(--emerald); }
+  .lumiere-toggle input:checked + .track::before{ transform:translateX(16px); }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,500&display=swap" rel="stylesheet">
@@ -3127,6 +3194,8 @@
       </div>
       <p class="note" id="lumiere-statut" style="margin-top:8px;"></p>
 
+      <div id="lumiere-secteurs"></div>
+
       <label style="display:block;margin-top:14px;">Effet</label>
       <div class="template-choix" id="lumiere-effets">
         <button type="button" data-effect="statique" class="active" onclick="lumiereChoisirEffet('statique')">Statique</button>
@@ -4902,6 +4971,16 @@ function ajouterProduitPlouvier(){
   afficherToast('Produit ajouté à la liste Plouvier.');
 }
 
+function modifierNomPlouvier(id, valeur){
+  const p = DATA.commandePlouvier.produits.find(x=>x.id===id);
+  if(!p) return;
+  const nom = valeur.trim();
+  if(!nom) return;
+  p.nom = nom;
+  sauvegarder();
+  renderPlouvierTab();
+}
+
 function modifierQuantitePlouvier(id, valeur){
   const p = DATA.commandePlouvier.produits.find(x=>x.id===id);
   if(!p) return;
@@ -4949,7 +5028,7 @@ function renderPlouvierTab(){
     totalTtcGlobal += totalTtc;
     return `
         <tr>
-          <td>${escapeHtml(p.nom)}</td>
+          <td><input type="text" class="qty-input" value="${escapeHtml(p.nom)}" onchange="modifierNomPlouvier('${p.id}', this.value)"></td>
           <td><input type="number" min="0" step="1" class="qty-input" value="${p.quantite}" onchange="modifierQuantitePlouvier('${p.id}', this.value)"></td>
           <td><input type="number" min="0" step="0.01" class="qty-input" value="${p.prixHT||0}" onchange="modifierPrixHTPlouvier('${p.id}', this.value)"></td>
           <td>${formatEuro(totalHt)}</td>
@@ -6689,6 +6768,7 @@ async function lumiereConnecter(){
       lumiereDejaConnecte = true;
       lumiereStatut(`${data.bulbs} ampoule(s) connectée(s)`, 'ok');
       document.getElementById('lumiere-day-btn').disabled = false;
+      lumiereRenderSecteurs(data.bulb_list || []);
     } else {
       lumiereStatut(data.error, 'err');
     }
@@ -6696,6 +6776,55 @@ async function lumiereConnecter(){
     lumiereStatut('Impossible de joindre le serveur (' + url + '). Vérifie qu\'il tourne et que tu es sur le même Wi-Fi.', 'err');
   }
   btn.disabled = false;
+}
+
+function lumiereRenderSecteurs(bulbList){
+  const conteneur = document.getElementById('lumiere-secteurs');
+  if(!conteneur) return;
+  if(!bulbList.length){ conteneur.innerHTML = ''; return; }
+  const secteurs = {};
+  bulbList.forEach(b => {
+    (secteurs[b.secteur] = secteurs[b.secteur] || []).push(b);
+  });
+  conteneur.innerHTML = Object.keys(secteurs).sort().map(secteur => {
+    const ampoules = secteurs[secteur];
+    const actives = ampoules.filter(a => a.enabled).length;
+    const lignes = ampoules.map(a => `
+      <div class="lumiere-ampoule-row${a.enabled ? '' : ' disabled'}">
+        <span>${escapeHtml(a.name)}</span>
+        <label class="lumiere-toggle">
+          <input type="checkbox" ${a.enabled ? 'checked' : ''} onclick="event.stopPropagation(); lumiereToggleAmpoule('${a.ip}', this.checked)">
+          <span class="track"></span>
+        </label>
+      </div>`).join('');
+    return `
+      <div class="lumiere-secteur">
+        <div class="lumiere-secteur-header" onclick="this.parentElement.classList.toggle('open')">
+          <span>${escapeHtml(secteur)} (${actives}/${ampoules.length})</span>
+          <span class="chevron">▾</span>
+        </div>
+        <div class="lumiere-secteur-corps">${lignes}</div>
+      </div>`;
+  }).join('');
+}
+
+async function lumiereToggleAmpoule(ip, enabled){
+  const url = lumiereUrl();
+  if(!url) return;
+  try{
+    const res = await fetch(url + '/api/toggle_bulb', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ip, enabled})
+    });
+    const data = await res.json();
+    if(data.ok){
+      lumiereRenderSecteurs(data.bulb_list || []);
+    } else {
+      lumiereStatut(data.error, 'err');
+    }
+  } catch(e){
+    lumiereStatut('Erreur: ' + e, 'err');
+  }
 }
 
 async function lumiereModeJournee(){

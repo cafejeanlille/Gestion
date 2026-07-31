@@ -53,7 +53,19 @@ def status():
 def connect():
     try:
         n = run_async(show.connect())
-        return jsonify(ok=True, bulbs=n, bulb_names=[d.alias for d in show.bulbs])
+        return jsonify(ok=True, bulbs=n, **show.status())
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 400
+
+
+@app.route("/api/toggle_bulb", methods=["POST"])
+def toggle_bulb():
+    data = request.get_json(force=True) or {}
+    ip = data.get("ip")
+    enabled = bool(data.get("enabled"))
+    try:
+        show.toggle_bulb(ip, enabled)
+        return jsonify(ok=True, **show.status())
     except Exception as e:
         return jsonify(ok=False, error=str(e)), 400
 

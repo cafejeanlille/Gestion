@@ -1,11 +1,19 @@
 """Contrôleur des ampoules Tapo : connexion et effets lumineux."""
 import asyncio
 import json
+import re
 from pathlib import Path
 
 from kasa import Discover, Credentials, Module
 
 CONFIG_PATH = Path(__file__).parent / "config.json"
+
+
+def secteur_de(nom: str) -> str:
+    """Déduit le secteur (Bar, Salle, Carrelage...) à partir du nom de l'ampoule
+    en retirant le numéro à la fin (ex: 'Bar 3' -> 'Bar')."""
+    base = re.sub(r"\s*\d+\s*$", "", (nom or "").strip())
+    return base.title() if base else "Autres"
 
 EFFECTS = ["statique", "arc_en_ciel", "strobe", "son"]
 
@@ -21,6 +29,7 @@ DAY_MODE_PREFIXES_TAMISES = ("bar", "salle")
 class LightShow:
     def __init__(self):
         self.bulbs = []
+        self.disabled_ips = set()
         self.effect = None
         self.params = {}
         self._task = None
@@ -39,7 +48,19 @@ class LightShow:
             await dev.update()
             bulbs.append(dev)
         self.bulbs = bulbs
+        self.disabled_ips = set()
         return len(self.bulbs)
+
+    def _active_bulbs(self):
+        return [dev for dev in self.bulbs if dev.host not in self.disabled_ips]
+
+    def toggle_bulb(self, ip: str, enabled: bool):
+        if not any(dev.host == ip for dev in self.bulbs):
+            raise RuntimeError(f"Ampoule {ip} inconnue (pas dans la liste connectée).")
+        if enabled:
+            self.disabled_ips.discard(ip)
+        else:
+            self.disabled_ips.add(ip)
 
     async def restore_day_mode(self):
         if not self.bulbs:
@@ -55,13 +76,13 @@ class LightShow:
             brightness = DAY_MODE_BRIGHTNESS_TAMISE if tamisee else DAY_MODE_BRIGHTNESS_NORMALE
             await dev.modules[Module.Light].set_hsv(DAY_MODE_HUE, DAY_MODE_SATURATION, brightness)
 
-        await asyncio.gather(*(_set_one(dev) for dev in self.bulbs), return_exceptions=True)
+        await asyncio.gather(*(_set_one(dev) for dev in self._active_bulbs()), return_exceptions=True)
 
     async def _set_all(self, hue, sat, val):
         await asyncio.gather(
             *(
                 dev.modules[Module.Light].set_hsv(int(hue) % 360, int(sat), int(val))
-                for dev in self.bulbs
+                for dev in self._active_bulbs()
                 if Module.Light in dev.modules
             ),
             return_exceptions=True,
@@ -69,7 +90,7 @@ class LightShow:
 
     async def _turn_all(self, on: bool):
         await asyncio.gather(
-            *((dev.turn_on() if on else dev.turn_off()) for dev in self.bulbs),
+            *((dev.turn_on() if on else dev.turn_off()) for dev in self._active_bulbs()),
             return_exceptions=True,
         )
 
@@ -148,7 +169,7 @@ class LightShow:
             nonlocal volume
             volume = float(np.sqrt(np.mean(indata**2)))
 
-        eclairables = [dev for dev in self.bulbs if Module.Light in dev.modules]
+        eclairables = [dev for dev in self._active_bulbs() if Module.Light in dev.modules]
         n = max(len(eclairables), 1)
         base_hue = 0.0
 
@@ -172,6 +193,15 @@ class LightShow:
         return {
             "connected": len(self.bulbs),
             "bulb_names": [dev.alias for dev in self.bulbs],
+            "bulb_list": [
+                {
+                    "ip": dev.host,
+                    "name": dev.alias,
+                    "secteur": secteur_de(dev.alias),
+                    "enabled": dev.host not in self.disabled_ips,
+                }
+                for dev in self.bulbs
+            ],
             "effect": self.effect,
             "params": self.params,
         }
