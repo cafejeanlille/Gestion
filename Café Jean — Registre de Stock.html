@@ -3058,7 +3058,7 @@
         <div class="p-kpi accent">
           <div class="k-label">Seuil de rentabilité</div>
           <div class="k-val" id="pKpiBreakeven">—</div>
-          <div class="k-note">CA TTC mensuel minimum</div>
+          <div class="k-note">CA TTC mensuel minimum, TVA (20%) déjà déduite</div>
         </div>
       </div>
     </div>
@@ -3072,9 +3072,12 @@
             <div class="sim-ca-val" id="pCaVal">— €</div>
           </div>
           <div class="sim-result">
-            <div class="r-label">Résultat mensuel</div>
+            <div class="r-label">Résultat net (après TVA)</div>
             <div class="r-val" id="pResVal">— €</div>
           </div>
+        </div>
+        <div class="rate-row" style="margin-top:-6px;">
+          dont TVA à reverser (estimée à 20%) : <strong id="pTvaVal" style="color:var(--p-chalk);">— €</strong>
         </div>
         <div class="slider-wrap">
           <input type="range" id="pCaSlider" min="10000" max="35000" step="250" value="20000" oninput="renderPrevisionSimulateur()">
@@ -3103,7 +3106,8 @@
               <th>Charges fixes</th>
               <th>Charges variables</th>
               <th>Total charges</th>
-              <th>Résultat</th>
+              <th>TVA à reverser</th>
+              <th>Résultat net</th>
             </tr>
           </thead>
           <tbody id="pTbody"></tbody>
@@ -5003,6 +5007,13 @@ function renderPrevisionTab(){
   renderPrevisionSimulateur();
 }
 
+// Taux de TVA unique simplifié utilisé pour estimer la TVA à reverser dans le
+// simulateur de Prévision (CA et achats saisis en TTC dans ce simulateur —
+// la TVA collectée sur les ventes moins la TVA déductible sur les achats est
+// retirée du résultat pour approcher le bénéfice réel, pas seulement l'écart
+// CA/charges). Les charges fixes restent telles que saisies (non retraitées).
+const TVA_TAUX_PREVISION = 0.20;
+
 function renderPrevisionSimulateur(){
   const slider = document.getElementById('pCaSlider');
   const rateInput = document.getElementById('pRateInput');
@@ -5017,7 +5028,9 @@ function renderPrevisionSimulateur(){
   document.getElementById('pKpiFixe').textContent = formatEuro(fixe);
   document.getElementById('pKpiVariableReel').textContent = formatEuro(variableReel);
 
-  const breakeven = rate < 1 ? fixe / (1 - rate) : null;
+  // Seuil de rentabilité en tenant compte de la TVA à reverser (voir le détail
+  // du calcul dans le commentaire au-dessus de resultatNetTva ci-dessous).
+  const breakeven = rate < 1 ? (fixe * (1 + TVA_TAUX_PREVISION)) / (1 - rate) : null;
   document.getElementById('pKpiBreakeven').textContent = breakeven != null ? formatEuro(breakeven) : '—';
 
   const markerEl = document.getElementById('pBreakevenMarker');
@@ -5035,7 +5048,12 @@ function renderPrevisionSimulateur(){
   document.getElementById('pScaleMin').textContent = formatEuro(CA_MIN);
   document.getElementById('pScaleMax').textContent = formatEuro(CA_MAX);
   const variableSimulee = caCurrent * rate;
-  const resultat = caCurrent - fixe - variableSimulee;
+  // CA et achats sont saisis TTC. La TVA à reverser = TVA collectée sur le CA
+  // moins la TVA déductible sur les achats, soit (CA − achats) × 20/120.
+  // Le résultat net retire cette TVA (les charges fixes ne sont pas retraitées).
+  const tvaAPayer = (caCurrent - variableSimulee) * (TVA_TAUX_PREVISION / (1 + TVA_TAUX_PREVISION));
+  const resultat = caCurrent - fixe - variableSimulee - tvaAPayer;
+  document.getElementById('pTvaVal').textContent = formatEuro(tvaAPayer);
   const resEl = document.getElementById('pResVal');
   resEl.textContent = (resultat>=0?'+':'−') + formatEuro(Math.abs(resultat));
   resEl.style.color = resultat >= 0 ? 'var(--p-sage)' : 'var(--p-brick)';
@@ -5049,12 +5067,14 @@ function renderPrevisionSimulateur(){
     tbody.innerHTML = paliers.map(ca=>{
       const variablePalier = ca * rate;
       const totalCharges = fixe + variablePalier;
-      const res = ca - totalCharges;
+      const tvaPalier = (ca - variablePalier) * (TVA_TAUX_PREVISION / (1 + TVA_TAUX_PREVISION));
+      const res = ca - totalCharges - tvaPalier;
       return `<tr>
         <td>${formatEuro(ca)}</td>
         <td>${formatEuro(fixe)}</td>
         <td>${formatEuro(variablePalier)}</td>
         <td>${formatEuro(totalCharges)}</td>
+        <td>${formatEuro(tvaPalier)}</td>
         <td style="color:${res>=0?'var(--p-sage)':'var(--p-brick)'}">${(res>=0?'+':'−')}${formatEuro(Math.abs(res))}</td>
       </tr>`;
     }).join('');
