@@ -3116,7 +3116,7 @@
   <section class="tab-panel" id="tab-social">
     <div class="card">
       <h2 id="social-visuel-titre">📸 Créateur de visuel</h2>
-      <p class="note">Décrivez ce que vous voulez publier, choisissez Story ou Publication, et générez : l'IA dessine un visuel sur-mesure pour l'occasion et écrit la légende, toujours dans le style du Café Jean. Vous copiez/téléchargez et publiez vous-même sur Instagram/Facebook.</p>
+      <p class="note">Le style (couleurs, cadre, médaillon Café Jean) est toujours le même. Choisissez Story ou Publication, tapez le titre et la date/heure : c'est exactement ce qui s'affiche sur le visuel. Ajoutez une description pour que l'IA écrive la légende Instagram/Facebook. Vous copiez/téléchargez et publiez vous-même.</p>
 
       <label style="display:block;">Format</label>
       <div class="template-choix" id="poster-format-choix">
@@ -3125,9 +3125,21 @@
       </div>
 
       <div class="form-grid" style="margin-top:14px;">
+        <div>
+          <label for="social-titre">Titre de l'événement</label>
+          <input type="text" id="social-titre" placeholder="Ex : Soirée jazz" oninput="sauvegarderChampsSocial()">
+        </div>
+        <div>
+          <label for="social-date-jour">Date</label>
+          <input type="date" id="social-date-jour" oninput="sauvegarderChampsSocial()">
+        </div>
+        <div>
+          <label for="social-date-heure">Heure de début</label>
+          <input type="time" id="social-date-heure" oninput="sauvegarderChampsSocial()">
+        </div>
         <div style="grid-column:1/-1;">
-          <label for="social-ia-prompt">Votre prompt</label>
-          <textarea id="social-ia-prompt" rows="6" placeholder="Ex : Soirée jazz manouche vendredi 26 juillet à 20h30, 10€ l'entrée, buffet à l'entracte." oninput="sauvegarderPromptSocial()"></textarea>
+          <label for="social-ia-prompt">Description pour la légende (optionnel)</label>
+          <textarea id="social-ia-prompt" rows="4" placeholder="Ex : jazz manouche, 10€ l'entrée, buffet à l'entracte." oninput="sauvegarderChampsSocial()"></textarea>
         </div>
       </div>
       <div class="comptage-actions-bar" style="margin-top:14px;">
@@ -3153,12 +3165,10 @@
 
     <div class="card">
       <h2>📅 Programme du mois</h2>
-      <p class="note">Décrivez le programme du mois (concerts, brunchs, soirées...) : l'IA dessine une affiche sur-mesure, dans le style du Café Jean.</p>
-      <div class="form-grid">
-        <div style="grid-column:1/-1;">
-          <label for="programme-prompt">Votre prompt</label>
-          <textarea id="programme-prompt" rows="6" placeholder="Ex : Programme de juillet — concert jazz le 26 à 21h, brunch tous les dimanches dès 11h, soirée quiz le 30 à 20h." oninput="sauvegarderProgrammePrompt()"></textarea>
-        </div>
+      <p class="note">Ajoutez les événements du mois (concerts, brunchs, soirées...) : le style est toujours le même (couleurs, cadre, médaillon Café Jean), vous tapez juste les titres et dates.</p>
+      <div id="programme-evenements-liste"></div>
+      <div class="comptage-actions-bar" style="margin-top:10px;">
+        <button class="btn ghost" type="button" onclick="ajouterEvenementProgramme()">+ Ajouter un événement</button>
       </div>
       <div class="comptage-actions-bar" style="margin-top:14px;">
         <button class="btn" id="programme-ia-btn" onclick="genererProgrammeIA()">✨ Générer l'affiche</button>
@@ -3614,8 +3624,11 @@ function dataParDefaut(){
     commandePlouvier: { produits: produitsPlouvierDeDepart() },
     aProposCafe: '',
     daDescription: '',
+    socialTitre: '',
+    socialDateJour: '',
+    socialDateHeure: '',
     promptSocialLibre: '',
-    programmePrompt: '',
+    programmeEvenements: [],
     tauxChargesVariables: 27,
     chargesFixes: [
       {label:'Loyer', montant:0},
@@ -3764,10 +3777,15 @@ function activerOnglet(tab){
       DATA.promptSocialLibre = [DATA.daDescription, DATA.aProposCafe].filter(Boolean).join('\n\n');
       sauvegarder();
     }
+    const titreEl = document.getElementById('social-titre');
+    if(titreEl) titreEl.value = DATA.socialTitre || '';
+    const dateJourEl = document.getElementById('social-date-jour');
+    if(dateJourEl) dateJourEl.value = DATA.socialDateJour || '';
+    const dateHeureEl = document.getElementById('social-date-heure');
+    if(dateHeureEl) dateHeureEl.value = DATA.socialDateHeure || '';
     const promptEl = document.getElementById('social-ia-prompt');
     if(promptEl) promptEl.value = DATA.promptSocialLibre || '';
-    const programmePromptEl = document.getElementById('programme-prompt');
-    if(programmePromptEl) programmePromptEl.value = DATA.programmePrompt || '';
+    renderProgrammeEvenements();
   }
 }
 
@@ -4734,13 +4752,50 @@ function fermerApercuVisuel(){
   document.getElementById('apercuVisuelOverlay').style.display = 'none';
 }
 
-/* ============ PROGRAMME DU MOIS (généré par l'IA, comme le créateur de visuel) ============ */
+/* ============ PROGRAMME DU MOIS (liste d'événements, visuel au style fixe) ============ */
 const programmeState = { html: '' };
 
-function sauvegarderProgrammePrompt(){
-  const el = document.getElementById('programme-prompt');
-  DATA.programmePrompt = el ? el.value : '';
+function renderProgrammeEvenements(){
+  const conteneur = document.getElementById('programme-evenements-liste');
+  if(!conteneur) return;
+  if(!Array.isArray(DATA.programmeEvenements) || !DATA.programmeEvenements.length){
+    DATA.programmeEvenements = [{ titre: '', dateHeure: '' }];
+  }
+  conteneur.innerHTML = DATA.programmeEvenements.map((ev, i) => `
+    <div class="form-grid" style="margin-top:${i === 0 ? 0 : 10}px;align-items:end;">
+      <div>
+        <label>Événement ${i + 1}</label>
+        <input type="text" placeholder="Ex : Concert jazz" value="${escapeHtml(ev.titre || '')}" oninput="sauvegarderEvenementProgramme(${i}, 'titre', this.value)">
+      </div>
+      <div style="display:flex; gap:8px; align-items:end;">
+        <div style="flex:1;">
+          <label>Date / heure</label>
+          <input type="text" placeholder="Ex : Le 26 à 21h" value="${escapeHtml(ev.dateHeure || '')}" oninput="sauvegarderEvenementProgramme(${i}, 'dateHeure', this.value)">
+        </div>
+        <button class="btn ghost" type="button" title="Supprimer" onclick="supprimerEvenementProgramme(${i})">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function sauvegarderEvenementProgramme(index, champ, valeur){
+  if(!Array.isArray(DATA.programmeEvenements)) DATA.programmeEvenements = [];
+  if(!DATA.programmeEvenements[index]) DATA.programmeEvenements[index] = { titre: '', dateHeure: '' };
+  DATA.programmeEvenements[index][champ] = valeur;
   sauvegarder();
+}
+
+function ajouterEvenementProgramme(){
+  if(!Array.isArray(DATA.programmeEvenements)) DATA.programmeEvenements = [];
+  DATA.programmeEvenements.push({ titre: '', dateHeure: '' });
+  sauvegarder();
+  renderProgrammeEvenements();
+}
+
+function supprimerEvenementProgramme(index){
+  DATA.programmeEvenements.splice(index, 1);
+  sauvegarder();
+  renderProgrammeEvenements();
 }
 
 function afficherProgrammeIA(html){
@@ -4761,11 +4816,10 @@ function afficherProgrammeIA(html){
 }
 
 async function genererProgrammeIA(){
-  const promptEl = document.getElementById('programme-prompt');
   const btn = document.getElementById('programme-ia-btn');
-  const brief = (promptEl.value || '').trim();
-  if(!brief){
-    afficherToast('Décrivez le programme du mois.');
+  const evenements = (DATA.programmeEvenements || []).filter(ev => (ev.titre || '').trim());
+  if(!evenements.length){
+    afficherToast('Ajoutez au moins un événement avec un titre.');
     return;
   }
   btn.disabled = true;
@@ -4774,7 +4828,7 @@ async function genererProgrammeIA(){
   try{
     const res = await supabaseFetch('/functions/v1/social-ai', {
       method: 'POST',
-      body: JSON.stringify({ brief, format: 'affiche' })
+      body: JSON.stringify({ evenements, format: 'affiche' })
     });
     const data = await res.json();
     if(!res.ok || !data.ok) throw new Error(data.error || 'Erreur inconnue.');
@@ -4822,19 +4876,41 @@ async function telechargerProgrammeIA(){
 
 
 /* ============ ASSISTANT IA — IDÉES DE PUBLICATION ============ */
-function sauvegarderPromptSocial(){
-  const el = document.getElementById('social-ia-prompt');
-  DATA.promptSocialLibre = el ? el.value : '';
+function sauvegarderChampsSocial(){
+  DATA.socialTitre = (document.getElementById('social-titre')||{}).value || '';
+  DATA.socialDateJour = (document.getElementById('social-date-jour')||{}).value || '';
+  DATA.socialDateHeure = (document.getElementById('social-date-heure')||{}).value || '';
+  DATA.promptSocialLibre = (document.getElementById('social-ia-prompt')||{}).value || '';
   sauvegarder();
 }
 
+function formaterDateHeureSocial(jourIso, heureIso){
+  const jours = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  const mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  let texte = '';
+  if(jourIso){
+    const d = new Date(jourIso + 'T00:00:00');
+    if(!isNaN(d)) texte = `${jours[d.getDay()]} ${d.getDate()} ${mois[d.getMonth()]}`;
+  }
+  if(heureIso){
+    const [h, m] = heureIso.split(':');
+    const heureTxt = (m && m !== '00') ? `${parseInt(h,10)}h${m}` : `${parseInt(h,10)}h`;
+    texte = texte ? `${texte} · ${heureTxt}` : heureTxt;
+  }
+  return texte ? texte.charAt(0).toUpperCase() + texte.slice(1) : '';
+}
+
 async function genererIdeesSocial(){
-  const promptEl = document.getElementById('social-ia-prompt');
+  const titre = (document.getElementById('social-titre').value || '').trim();
+  const dateHeure = formaterDateHeureSocial(
+    document.getElementById('social-date-jour').value,
+    document.getElementById('social-date-heure').value
+  );
+  const brief = (document.getElementById('social-ia-prompt').value || '').trim();
   const btn = document.getElementById('social-ia-btn');
   const resultatEl = document.getElementById('social-ia-resultat');
-  const brief = (promptEl.value || '').trim();
-  if(!brief){
-    afficherToast('Décrivez ce que vous voulez publier.');
+  if(!titre && !brief){
+    afficherToast('Renseignez au moins un titre ou une description.');
     return;
   }
   btn.disabled = true;
@@ -4844,7 +4920,7 @@ async function genererIdeesSocial(){
   try{
     const res = await supabaseFetch('/functions/v1/social-ai', {
       method: 'POST',
-      body: JSON.stringify({ brief, format: posterState.format })
+      body: JSON.stringify({ titre, dateHeure, brief, format: posterState.format })
     });
     const data = await res.json();
     if(!res.ok || !data.ok) throw new Error(data.error || 'Erreur inconnue.');
