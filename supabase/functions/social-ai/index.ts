@@ -47,9 +47,7 @@ const PALETTE = {
 const IDENTITE = {
   adresseMajuscules: '117 BIS RUE DES POSTES, LILLE',
   quartierVille: 'Wazemmes · Lille',
-  instagram: '@cafejeanlille',
-  depuis: 'Depuis 1923',
-  kicker: 'BAR DE QUARTIER',
+  kicker: 'DEPUIS 1923',
 };
 
 const SYSTEM_PROMPT_LEGENDE = `Tu es Jean, le patron du café-bar "Café Jean" (117 bis rue des Postes, Lille,
@@ -131,6 +129,21 @@ function friseFestons(xDebut: number, xFin: number, y: number, sweep: 0 | 1, r =
   return `<path d="${d}" fill="none" stroke="${PALETTE.or}" stroke-width="2" opacity="0.8"/>`;
 }
 
+// Même frise festonnée, mais le long d'un bord VERTICAL (gauche/droite) —
+// même logique de sweep, toujours orientée vers le centre du visuel.
+function friseFestonsVerticale(yDebut: number, yFin: number, x: number, sweep: 0 | 1, r = 14): string {
+  let d = `M ${x} ${yDebut}`;
+  for (let y = yDebut; y + 2 * r <= yFin; y += 2 * r) {
+    d += ` A ${r} ${r} 0 0 ${sweep} ${x} ${y + 2 * r}`;
+  }
+  return `<path d="${d}" fill="none" stroke="${PALETTE.or}" stroke-width="2" opacity="0.8"/>`;
+}
+
+// Petit losange décoratif, posé sur un coin du cadre.
+function diamantCoin(x: number, y: number, taille = 11): string {
+  return `<rect x="${x - taille / 2}" y="${y - taille / 2}" width="${taille}" height="${taille}" fill="${PALETTE.or}" opacity="0.75" transform="rotate(45 ${x} ${y})"/>`;
+}
+
 function decorSvg(w: number, h: number): string {
   const marge1 = 16;
   const marge2 = 22;
@@ -144,6 +157,12 @@ function decorSvg(w: number, h: number): string {
     ${eventailCoin(marge1, h - marge1, [285, 305, 325, 345], 56)}
     ${friseFestons(70, w - 70, 34, 1)}
     ${friseFestons(70, w - 70, h - 34, 0)}
+    ${friseFestonsVerticale(90, h - 90, 34, 0)}
+    ${friseFestonsVerticale(90, h - 90, w - 34, 1)}
+    ${diamantCoin(marge1, marge1)}
+    ${diamantCoin(w - marge1, marge1)}
+    ${diamantCoin(w - marge1, h - marge1)}
+    ${diamantCoin(marge1, h - marge1)}
   </svg>`;
 }
 
@@ -183,15 +202,16 @@ function construireVisuelHtml(w: number, h: number, blocEvenement: string): stri
   return `<div style="position:relative;width:${w}px;height:${h}px;overflow:hidden;background:linear-gradient(135deg, ${PALETTE.vert}, ${PALETTE.vertClair});font-family:'Playfair Display',serif;">
     ${decorSvg(w, h)}
     <div style="position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:${justify};padding:80px 70px;box-sizing:border-box;gap:28px;">
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:15px;letter-spacing:3px;color:${PALETTE.creme};">${IDENTITE.kicker}</div>
-      <div style="width:340px;height:340px;border-radius:50%;border:1.5px solid ${PALETTE.or};display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;">
-        <div style="font-size:46px;font-weight:700;color:${PALETTE.creme};letter-spacing:1px;">CAFÉ</div>
-        <div style="font-size:46px;font-weight:700;color:${PALETTE.or};letter-spacing:1px;">JEAN</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:21px;letter-spacing:4px;color:${PALETTE.creme};">${IDENTITE.kicker}</div>
+      <div style="width:406px;height:406px;border-radius:50%;border:1px solid rgba(201,166,104,0.6);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <div style="width:380px;height:380px;border-radius:50%;border:1.5px solid ${PALETTE.or};display:flex;flex-direction:column;align-items:center;justify-content:center;">
+          <div style="font-size:52px;font-weight:700;color:${PALETTE.creme};letter-spacing:1px;text-shadow:0 2px 8px rgba(0,0,0,0.35);">CAFÉ</div>
+          <div style="font-size:52px;font-weight:700;color:${PALETTE.or};letter-spacing:1px;text-shadow:0 2px 8px rgba(0,0,0,0.35);">JEAN</div>
+        </div>
       </div>
       ${blocEvenement}
       <div style="font-family:'IBM Plex Mono',monospace;font-size:17px;letter-spacing:2px;color:${PALETTE.creme};text-align:center;">${IDENTITE.adresseMajuscules}</div>
       <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:28px;color:${PALETTE.or};text-align:center;">${IDENTITE.quartierVille}</div>
-      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;color:${PALETTE.or};text-align:center;line-height:1.6;">${IDENTITE.depuis}<br/>${IDENTITE.instagram}</div>
     </div>
   </div>`;
 }
