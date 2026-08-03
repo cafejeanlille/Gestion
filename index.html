@@ -2676,7 +2676,7 @@
         </label>
         <div class="upload-status" id="facture-status"></div>
       </div>
-      <p class="note">Cette lecture automatique nécessite une connexion internet (elle passe par votre clé API Anthropic configurée sur Netlify). Vérifiez toujours les lignes détectées avant de valider — vous pouvez les corriger ci-dessous.</p>
+      <p class="note">Cette lecture automatique nécessite une connexion internet (elle passe par votre clé API Anthropic configurée sur Supabase). Vérifiez toujours les lignes détectées avant de valider — vous pouvez les corriger ci-dessous.</p>
       <div id="facture-review-wrap"></div>
     </div>
 
@@ -5608,9 +5608,8 @@ async function callClaudeExtraction(base64, mediaType, systemPrompt){
     ? { type:'document', source:{ type:'base64', media_type:'application/pdf', data:base64 } }
     : { type:'image', source:{ type:'base64', media_type:mediaType, data:base64 } };
 
-  const response = await fetch('/.netlify/functions/claude-extract', {
+  const response = await supabaseFetch('/functions/v1/claude-extract', {
     method:'POST',
-    headers:{ 'Content-Type':'application/json' },
     body: JSON.stringify({
       system: systemPrompt,
       messages:[{ role:'user', content:[ contentBlock, { type:'text', text:'Extrait les données selon le format demandé.' } ] }]
@@ -5745,9 +5744,8 @@ function readFileAsText(file){
 }
 
 async function callClaudeExtractionTexte(texte, systemPrompt){
-  const response = await fetch('/.netlify/functions/claude-extract', {
+  const response = await supabaseFetch('/functions/v1/claude-extract', {
     method:'POST',
-    headers:{ 'Content-Type':'application/json' },
     body: JSON.stringify({
       system: systemPrompt,
       messages:[{ role:'user', content:[ { type:'text', text: "Voici le contenu du fichier :\n\n" + texte }, { type:'text', text:'Extrait les données selon le format demandé.' } ] }]
