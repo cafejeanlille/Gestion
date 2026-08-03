@@ -6496,13 +6496,16 @@ function renderDashboard(){
     ? jaliaCumulMois.carte
     : Math.round(comptagesDuMois.reduce((s,c)=>s+((c.carteContact||0)+(c.carteSansContact||0)),0)*100)/100;
   const cumulCA = Math.round((especesDuMois + carteDuMois) * 100) / 100;
-  // Objectif du mois = charges fixes + charges variables (achats du mois),
-  // pour que le CA cumulé doive couvrir l'ensemble des charges, pas
-  // seulement les charges fixes.
-  const totalChargesVariablesMois = calculerChargesVariablesDuMois();
-  const totalCharges = Math.round((totalChargesFixesMois + totalChargesVariablesMois) * 100) / 100;
+  // Objectif du mois = seuil de rentabilité (même calcul que l'onglet
+  // Prévision : charges fixes couvertes une fois le taux de charges
+  // variables et la TVA à reverser pris en compte), pas juste les charges
+  // déjà engagées ce mois-ci.
+  const tauxChargesVariablesRatio = (DATA.tauxChargesVariables != null ? DATA.tauxChargesVariables : 27) / 100;
+  const seuilRentabilite = tauxChargesVariablesRatio < 1
+    ? (totalChargesFixesMois * (1 + TVA_TAUX_PREVISION)) / (1 - tauxChargesVariablesRatio)
+    : null;
   const tropPercu = Math.round(comptagesDuMois.reduce((s,c)=>s+(c.ecart||0),0)*100)/100;
-  const restant = Math.round((totalCharges - cumulCA)*100)/100;
+  const restant = seuilRentabilite != null ? Math.round((seuilRentabilite - cumulCA)*100)/100 : null;
 
   const cumulCAEl = document.getElementById('cumulCA');
   if(cumulCAEl) cumulCAEl.textContent = formatEuro(cumulCA);
@@ -6514,15 +6517,17 @@ function renderDashboard(){
 
   const resteEl = document.getElementById('resteAtteindre');
   if(resteEl){
-    resteEl.textContent = restant <= 0
-      ? `Objectif atteint (+${formatEuro(Math.abs(restant))})`
-      : `Reste à atteindre : ${formatEuro(restant)}`;
+    resteEl.textContent = restant == null
+      ? '—'
+      : restant <= 0
+        ? `Objectif atteint (+${formatEuro(Math.abs(restant))})`
+        : `Reste à atteindre : ${formatEuro(restant)}`;
   }
 
   const tropPercuEl = document.getElementById('tropPercuEspeceRecap');
   if(tropPercuEl) tropPercuEl.textContent = (tropPercu > 0 ? '+' : '') + formatEuro(tropPercu);
 
-  const pct = totalCharges > 0 ? Math.min(100, Math.max(0, (cumulCA/totalCharges)*100)) : 0;
+  const pct = seuilRentabilite > 0 ? Math.min(100, Math.max(0, (cumulCA/seuilRentabilite)*100)) : 0;
   const progressFillEl = document.getElementById('progressFill');
   if(progressFillEl){
     progressFillEl.style.width = pct.toFixed(0) + '%';
