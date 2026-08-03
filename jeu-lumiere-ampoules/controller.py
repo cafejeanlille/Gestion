@@ -1,6 +1,7 @@
 """Contrôleur des ampoules Tapo : connexion et effets lumineux."""
 import asyncio
 import json
+import random
 import re
 from pathlib import Path
 
@@ -15,7 +16,7 @@ def secteur_de(nom: str) -> str:
     base = re.sub(r"\s*\d+\s*$", "", (nom or "").strip())
     return base.title() if base else "Autres"
 
-EFFECTS = ["statique", "arc_en_ciel", "strobe", "son"]
+EFFECTS = ["statique", "arc_en_ciel", "strobe", "disco", "son"]
 
 # Mode journée : teinte "or" de la DA du café (#C1912F), plus tamisée pour le bar
 # et la salle que pour le reste.
@@ -164,6 +165,8 @@ class LightShow:
                 await self._run_arc_en_ciel()
             elif self.effect == "strobe":
                 await self._run_strobe()
+            elif self.effect == "disco":
+                await self._run_disco()
             elif self.effect == "son":
                 await self._run_son()
         except asyncio.CancelledError:
@@ -201,6 +204,21 @@ class LightShow:
             await self._turn_all(on)
             await self._wait(delay)
         await self._turn_all(True)
+
+    async def _run_disco(self):
+        await self._turn_all(True)
+        speed = max(1.0, self.params.get("speed", 6.0))
+        delay = max(0.1, 1.5 / speed)
+        while not self._stop_event.is_set():
+            await asyncio.gather(
+                *(
+                    dev.modules[Module.Light].set_hsv(random.randint(0, 359), 100, random.choice((60, 100)))
+                    for dev in self._active_bulbs()
+                    if Module.Light in dev.modules
+                ),
+                return_exceptions=True,
+            )
+            await self._wait(delay)
 
     async def _run_son(self):
         import numpy as np

@@ -125,7 +125,7 @@
 
 <script>
 const effects = {{ effects | tojson }};
-const effectLabels = {statique: "Statique", arc_en_ciel: "Arc-en-ciel", strobe: "Strobe", son: "Réactif au son"};
+const effectLabels = {statique: "Statique", arc_en_ciel: "Arc-en-ciel", strobe: "Strobe", disco: "Disco", son: "Réactif au son"};
 const effectsEl = document.getElementById('effects');
 let selectedEffect = 'statique';
 
@@ -137,8 +137,8 @@ effects.forEach(eff => {
     selectedEffect = eff;
     document.querySelectorAll('.effect-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    document.getElementById('color-group').style.display = (eff === 'son' || eff === 'arc_en_ciel') ? 'none' : '';
-    document.getElementById('speed-group').style.display = (eff === 'arc_en_ciel' || eff === 'strobe') ? '' : 'none';
+    document.getElementById('color-group').style.display = (eff === 'son' || eff === 'arc_en_ciel' || eff === 'disco') ? 'none' : '';
+    document.getElementById('speed-group').style.display = (eff === 'arc_en_ciel' || eff === 'strobe' || eff === 'disco') ? '' : 'none';
   };
   effectsEl.appendChild(btn);
 });
@@ -267,10 +267,10 @@ document.getElementById('day-mode-btn').onclick = async () => {
 
 document.getElementById('start-btn').onclick = async () => {
   const params = {};
-  if(selectedEffect !== 'arc_en_ciel' && selectedEffect !== 'son'){
+  if(selectedEffect !== 'arc_en_ciel' && selectedEffect !== 'son' && selectedEffect !== 'disco'){
     params.color = hexToHsv(document.getElementById('color').value);
   }
-  if(selectedEffect === 'arc_en_ciel' || selectedEffect === 'strobe'){
+  if(selectedEffect === 'arc_en_ciel' || selectedEffect === 'strobe' || selectedEffect === 'disco'){
     params.speed = Number(document.getElementById('speed').value);
     if(selectedEffect === 'strobe') params.color = hexToHsv(document.getElementById('color').value);
   }
