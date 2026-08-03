@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "cafe-jean-static",
-      "runtimeExecutable": "python",
+      "runtimeExecutable": "C:\\Users\\cafej\\AppData\\Local\\Python\\bin\\python.exe",
       "runtimeArgs": ["-m", "http.server", "8080"],
       "port": 8080
     }

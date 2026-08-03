@@ -1,10 +1,20 @@
-// Fonction appelée depuis l'onglet "Réseaux sociaux" de l'app : à partir d'un
-// court brief tapé par le café, génère :
-//   1. une légende pour Instagram/Facebook (pas de hashtags)
-//   2. un visuel sur-mesure (HTML/CSS généré par l'IA, pas un gabarit fixe)
-// via l'API Mistral AI (entreprise française, crédits gratuits à l'inscription
-// sur console.mistral.ai). L'IA ne publie rien : le café copie le texte et
-// télécharge l'image généré, et publie lui-même sur Instagram/Facebook.
+// Fonction appelée depuis l'onglet "Réseaux sociaux" de l'app.
+//
+// Le visuel (cadre Art Déco, rayons, médaillon "Café Jean", adresse...) est un
+// gabarit FIXE construit ici en code : il est rigoureusement identique à chaque
+// génération, quel que soit le format. On y insère soit un seul événement (outil
+// "Créateur de visuel", formats Story/Publication) soit une liste de plusieurs
+// événements (outil "Programme du mois", format Affiche) — le titre et la
+// date/heure de chaque événement sont saisis directement par le café, PAS
+// générés par l'IA : ce qui est tapé est exactement ce qui s'affiche.
+//
+// L'IA (Mistral) n'intervient que pour UNE chose : écrire la légende
+// Instagram/Facebook du "Créateur de visuel", à partir du titre/de la date/
+// heure et d'un brief libre optionnel. Le "Programme du mois" n'a pas de
+// légende et n'appelle donc jamais l'IA.
+//
+// L'IA ne publie rien : le café copie le texte et télécharge l'image générée,
+// et publie lui-même sur Instagram/Facebook.
 //
 // Secret requis (Project Settings > Edge Functions > Secrets) :
 //   MISTRAL_API_KEY : clé API Mistral, créée sur https://console.mistral.ai
@@ -28,34 +38,27 @@ const FORMATS: Record<string, { w: number; h: number }> = {
 };
 
 const PALETTE = {
-  bordeaux: '#4A1418',
-  bordeauxDark: '#2E0D0C',
-  gold: '#C1912F',
-  cream: '#F7EFDC',
-  creamDark: '#EFE3C7',
-  ink: '#3A1210',
+  vert: '#0C2118',
+  vertClair: '#173D2A',
+  or: '#C9A668',
+  creme: '#F3ECDD',
 };
 
-const SYSTEM_PROMPT = `Tu es Jean, le patron du café-bar "Café Jean". C'est TOI qui écris ce post,
-vite fait sur ton téléphone entre deux clients — pas un community manager, pas une agence.
+const IDENTITE = {
+  adresseMajuscules: '117 BIS RUE DES POSTES, LILLE',
+  quartierVille: 'Wazemmes · Lille',
+  instagram: '@cafejeanlille',
+  depuis: 'Depuis 1923',
+  kicker: 'BAR DE QUARTIER',
+};
 
-IDENTITÉ ET DA FIXES DU CAFÉ — à respecter à CHAQUE génération, même si le prompt ci-dessous
-ne les rappelle pas (le café ne les retape pas à chaque fois, c'est à toi de t'en souvenir) :
-- Café-bar "Café Jean", à Wazemmes (Lille), depuis 1923 — vintage, chaleureux, jamais aseptisé
-  ni "startup". Compte Instagram : @cafejeanlille.
-- Palette obligatoire par défaut, à chaque visuel : bordeaux profond ${PALETTE.bordeaux}
-  (accent plus sombre ${PALETTE.bordeauxDark}), or ${PALETTE.gold}, crème ${PALETTE.cream}
-  (accent ${PALETTE.creamDark}). Ne bascule JAMAIS sur une autre famille de couleurs (vert,
-  bleu, rose...) sauf si LE PROMPT DU CAFÉ ci-dessous demande explicitement une autre DA pour
-  cette publication précise — dans ce cas seulement, cette demande ponctuelle prime.
-- Typographies disponibles (déjà chargées) : 'Playfair Display' (serif élégant, titres),
-  'Cormorant Garamond' (serif raffiné, sous-textes/détails), 'IBM Plex Mono' (majuscules
-  espacées pour kicker/date/mentions techniques), 'Bebas Neue' (grand titre condensé, usage
-  ponctuel). Reste dans cette famille vintage/rétro, jamais une police "moderne" générique.
+const SYSTEM_PROMPT_LEGENDE = `Tu es Jean, le patron du café-bar "Café Jean" (117 bis rue des Postes, Lille,
+quartier Wazemmes, depuis 1923 — vintage, chaleureux, jamais aseptisé ni "startup", compte
+Instagram @cafejeanlille). C'est TOI qui écris ce post, vite fait sur ton téléphone entre deux
+clients — pas un community manager, pas une agence.
 
-Ta clientèle se méfie de tout ce qui sent le marketing ou l'IA. Si le texte a l'air généré,
-c'est raté. Donc, pour la légende (UNE SEULE, pas plusieurs versions au choix — le café a
-déjà écrit son prompt et sa DA, tu ne proposes pas de variantes) :
+Écris UNE SEULE légende Instagram/Facebook (pas plusieurs versions au choix) pour la
+publication décrite par le café ci-dessous (titre, date/heure et détails éventuels) :
 - Écris comme tu parles vraiment, pas comme une pub. Familier, direct, sans afféterie.
 - Phrases courtes. Une seule phrase peut suffire. Pas besoin de tout développer.
 - Interdiction absolue des formules toutes faites : "on vous attend avec impatience",
@@ -64,119 +67,12 @@ déjà écrit son prompt et sa DA, tu ne proposes pas de variantes) :
 - Pas de point d'exclamation partout — une phrase sur deux au grand maximum, souvent aucun.
 - Emoji : quasiment jamais. Zéro la plupart du temps, un seul si vraiment ça sonne naturel.
 - Pas de hashtags du tout — le café ne veut aucune suggestion de hashtag, juste le texte.
-
-Pour le visuel (champ "visuelHtml"), tu es maintenant aussi le/la graphiste du café. Tu
-dessines une affiche/story/publication SUR MESURE pour cet événement précis, pas un gabarit
-générique. Inspire-toi du sujet (ex: jazz -> ambiance Art Déco/sunburst façon vinyle, bière ->
-étiquette artisanale, brunch -> ambiance matinale chaleureuse...), tout en respectant la
-direction artistique du café.
-
-Contraintes techniques STRICTES pour visuelHtml :
-- Un unique bloc HTML autonome, une <div> racine avec width et height EXACTEMENT
-  {{LARGEUR}}px et {{HAUTEUR}}px, position:relative, overflow:hidden.
-- UNIQUEMENT du style inline (attribut style="..."), JAMAIS de balise <style>, <link>,
-  <script>, <img>, <iframe> — ces balises seraient supprimées et casseraient le rendu.
-- Polices disponibles (déjà chargées, utilise juste font-family) : 'Playfair Display', 'Cormorant
-  Garamond', 'IBM Plex Mono', 'Bebas Neue' (voir IDENTITÉ ET DA FIXES plus haut).
-- Palette à respecter : bordeaux profond ${PALETTE.bordeaux} (accent ${PALETTE.bordeauxDark}),
-  or ${PALETTE.gold}, fond sombre ${PALETTE.bordeauxDark}, clair/crème ${PALETTE.cream}. Tu peux
-  ajuster les nuances mais reste dans cette famille chaleureuse vintage (sauf si une DA
-  différente est explicitement demandée dans le prompt du café, auquel cas c'est elle qui prime).
-- Le nom "CAFÉ JEAN" doit apparaître quelque part. Pour le vrai logo (dessin encré du café),
-  n'essaie JAMAIS de le recréer toi-même — INTERDIT de dessiner un logo avec des <svg>/<text>/
-  <path>, des lettres découpées, ou tout autre bricolage visuel pour imiter "CAFÉ JEAN" en
-  image. Deux options seulement : (a) le token exact et littéral {{LOGO_CAFE_JEAN}} utilisé
-  UNIQUEMENT comme contenu texte d'une <div>, jamais autrement — ex: <div style="width:220px;
-  height:110px;margin:0 auto">{{LOGO_CAFE_JEAN}}</div>. INTERDIT de mettre ce token dans un
-  attribut CSS (background-image:url(...), content:"...", etc.) ou dans un attribut HTML — il
-  sera remplacé automatiquement par une vraie balise <img>, ce qui casse tout si le token n'est
-  pas dans le flux de texte normal d'une div. Ou (b) simplement le texte "CAFÉ JEAN" en
-  typographie normale (une <div> avec du texte, sans fioriture graphique autour).
-- Le texte (titre, date/heure, détails) vient du prompt — mets les infos concrètes données
-  (date, heure, prix...) si elles sont fournies, invente une formulation sobre sinon.
-
-MODÈLE DE RÉFÉRENCE À SUIVRE PAR DÉFAUT (ce gabarit a fait ses preuves — garde cette
-structure à chaque génération, en adaptant seulement les mots et éventuellement la palette
-si une DA différente est fournie plus bas) :
-1. Fond : dégradé de rayons façon soleil levant (sunburst), alternant deux nuances proches
-   de la couleur de fond principale (ex: ${PALETTE.bordeaux} et ${PALETTE.bordeauxDark}),
-   partant du centre vers les bords. INTERDIT d'utiliser conic-gradient ou
-   repeating-conic-gradient — mal supportés par l'outil de capture d'image utilisé pour le
-   téléchargement (l'export plante ou produit une image vide). Utilise à la place UNE de ces
-   deux techniques, qui fonctionnent de manière fiable :
-   a. Un <svg> inline en position:absolute couvrant toute la <div> racine (viewBox="0 0 100
-      100" ou similaire), avec une dizaine de <polygon> ou <path> triangulaires partant du
-      centre (50,50) vers le bord, en alternant deux couleurs proches du fond via fill.
-   b. Plusieurs <div> fines et longues, chacune avec transform:rotate(Xdeg) et
-      transform-origin:center, positionnées au centre du cadre, en alternant deux couleurs
-      proches du fond (les rayons décoratifs peuvent être tournés sans risque, contrairement
-      au ruban de date qui lui doit rester non tourné).
-   Purement décoratif, z-index:0, sans texte.
-2. Un double cadre fin doré (une bordure extérieure ~2px, une bordure intérieure quelques
-   pixels plus loin), avec un petit angle décoratif doré dans chacun des 4 coins. CONSTRUCTION
-   OBLIGATOIRE de chaque angle : DEUX <div> séparés et petits, PAS un seul gros <div> avec
-   border+clip-path (ça produit un grand carré/rectangle visible, jamais un angle fin — piège
-   fréquent à éviter absolument). Pour un coin, par exemple en haut à gauche : un <div>
-   position:absolute;top:20px;left:20px;width:40px;height:2px;background-color:${PALETTE.gold}
-   (le trait horizontal) ET un second <div> position:absolute;top:20px;left:20px;width:2px;
-   height:40px;background-color:${PALETTE.gold} (le trait vertical) — les deux ensemble forment
-   un petit angle droit de ~40px, sans aucun grand cadre visible autour. Adapte les coordonnées
-   (top/bottom, left/right) pour les 4 coins. Décoratif, z-index:0.
-3. Conteneur de texte flex (voir RÈGLE ANTI-CHEVAUCHEMENT plus bas) avec, dans l'ordre,
-   en enfants directs :
-   a. Le logo ({{LOGO_CAFE_JEAN}} dans une <div> ~180-220px de large) ou "CAFÉ JEAN" stylisé.
-   b. Un kicker tout en majuscules, très espacé, petite taille (ex: "WAZEMMES · LILLE ·
-      DEPUIS 1923"), puis un petit séparateur (deux traits fins encadrant un losange/point).
-   c. Le titre en deux temps : une courte ligne annonçant le type d'événement en majuscules
-      espacées, taille moyenne (ex: "SOIRÉE"), puis le mot-clé principal en très grand, gras,
-      couleur or, avec un léger drop-shadow sombre pour le détacher du fond.
-   d. Un sous-texte court en italique (une à deux lignes), ton chaleureux et personnel.
-   e. Un bandeau/ruban doré plein (extrémités coupées en pointe via clip-path — PAS de
-      transform:rotate) contenant la date/l'heure en gras, texte sombre sur fond doré.
-   f. L'adresse, puis un pied de page discret avec le compte Instagram (ex:
-      "@cafejeanlille"), séparé par un espace généreux.
-Cette structure verticale (logo → kicker → titre → sous-texte → bandeau date → adresse →
-compte) reste la même à chaque fois ; seuls les mots, le sujet visuel du sunburst et
-éventuellement la palette changent selon l'événement et la DA fournie.
-
-RÈGLE ANTI-CHEVAUCHEMENT (la faute la plus fréquente à éviter absolument) : ne JAMAIS
-positionner plusieurs blocs de texte avec des valeurs "top" en position:absolute devinées à
-la main — sur du texte multi-lignes, la hauteur réelle rendue ne correspond jamais à ton
-estimation et les blocs finissent chevauchés/illisibles. Structure donc TOUJOURS le HTML
-ainsi :
-1. D'abord, les éléments purement décoratifs (cadre, coins/fleurons, formes de fond, ruban
-   en arrière-plan) en position:absolute, avec z-index:0, SANS AUCUN TEXTE à l'intérieur —
-   AUCUNE EXCEPTION : même un mot répété façon tampon (ex: "OFFICIEL"), une accroche courte
-   ou un simple label doit vivre DANS le conteneur flex du point 2, jamais dans un <div>
-   décoratif séparé en position:absolute. Dès qu'il y a une lettre, ce n'est plus de la pure
-   décoration, et sa position doit être gérée par le flux flex, pas devinée à la main.
-2. Ensuite, un unique conteneur de texte : position:absolute; inset:0 (ou top/left/right/
-   bottom:0); z-index:1; display:flex; flex-direction:column; align-items:center;
-   justify-content:center (ou space-evenly/space-between selon la quantité de contenu);
-   padding généreux (ex: 80px) en box-sizing:border-box; gap:24px (ou plus).
-3. Chaque ligne/bloc de texte (titre, date/heure, sous-texte...) est un enfant DIRECT de ce
-   conteneur flex, dans le flux normal (JAMAIS de position:absolute ni de "top" manuel sur du
-   texte) — le flex column les empile automatiquement sans jamais les superposer, quelle que
-   soit leur hauteur réelle.
-- Formes décoratives en CSS pur (gradients, border-radius, clip-path, box-shadow) ou en SVG
-  inline (<svg> avec <defs>/<radialGradient>/<linearGradient> autorisés, tout doit rester
-  dans la <div> racine, toujours en arrière-plan derrière le conteneur de texte).
-- Les formes décoratives ne doivent JAMAIS traverser la zone centrale où vit le texte : reste
-  dans les marges/bordures/coins du cadre (par exemple les 15% extérieurs de chaque bord),
-  jamais vers le centre. Piège fréquent à éviter : un ruban/bande large tourné avec
-  transform:rotate() et positionné via top:50%/left:Xpx — la rotation pivote autour du centre
-  de l'élément et le fait presque toujours dériver au milieu du visuel, en plein sur le texte,
-  même si son z-index est censé être "derrière". Si tu veux un ruban vertical, colle-le
-  franchement sur le bord gauche ou droit (left:0 ou right:0), jamais vers le centre.
-- Tout le texte doit tenir dans le cadre, sans déborder (choisis des tailles de police
-  raisonnables vu la quantité de texte et l'espace disponible ; réduis la taille plutôt que
-  de risquer un débordement ou un chevauchement).
+- Ne cite JAMAIS le nom, l'adresse ou le compte Instagram d'un établissement réel autre que
+  "Café Jean", même si un autre bar/café du quartier ou de la rue semble correspondre au sujet.
 
 Réponds UNIQUEMENT avec un JSON strict, sans texte autour, de cette forme exacte (un seul
-élément dans "captions", jamais plusieurs — pas de champ "style", pas de champ "hashtags",
-juste le texte brut) :
-{"captions":[{"texte":"..."}],"visuelHtml":"<div style=\\"...\\">...</div>"}
-Le HTML dans visuelHtml doit être une chaîne JSON valide (guillemets internes échappés).`;
+élément dans "captions") :
+{"captions":[{"texte":"..."}]}`;
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -185,20 +81,119 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-// Filet de sécurité : quoi qu'il arrive, on retire tout ce qui pourrait executer du
-// code ou fuiter du style hors du cadre (script/style/link/iframe/on*=/javascript:).
-function nettoyerVisuelHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<link\b[^>]*>/gi, '')
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-    .replace(/<object[\s\S]*?<\/object>/gi, '')
-    .replace(/<embed\b[^>]*>/gi, '')
-    .replace(/<img\b[^>]*>/gi, '')
-    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
-    .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
-    .replace(/javascript:/gi, '');
+function echapperHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Rayons dorés façon soleil levant, partant du centre géométrique exact du cadre —
+// calculés en coordonnées réelles (pas un viewBox carré générique), donc jamais
+// décalés ni déformés quel que soit le format (carré, portrait, très haut).
+function rayons(w: number, h: number): string {
+  const cx = w / 2;
+  const cy = h / 2;
+  const rayon = Math.sqrt(w * w + h * h);
+  const n = 20;
+  let out = '';
+  for (let i = 0; i < n; i++) {
+    const angle = (i * 360) / n;
+    const rad = (angle * Math.PI) / 180;
+    const x2 = cx + rayon * Math.cos(rad);
+    const y2 = cy + rayon * Math.sin(rad);
+    out += `<line x1="${cx}" y1="${cy}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${PALETTE.or}" stroke-width="1.2" opacity="0.16"/>`;
+  }
+  return out;
+}
+
+// Éventail de traits fins dans un coin, façon Art Déco.
+function eventailCoin(x: number, y: number, angles: number[], longueur: number): string {
+  let out = '';
+  for (const angle of angles) {
+    const rad = (angle * Math.PI) / 180;
+    const x2 = x + longueur * Math.cos(rad);
+    const y2 = y + longueur * Math.sin(rad);
+    out += `<line x1="${x}" y1="${y}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${PALETTE.or}" stroke-width="1.3" opacity="0.55"/>`;
+  }
+  return out;
+}
+
+// Frise festonnée (petite vague de demi-cercles) le long d'un bord horizontal,
+// façon Art Déco. sweep=1 fait bomber la vague vers le bas, sweep=0 vers le haut
+// (toujours orientée vers le centre du visuel, quel que soit le bord).
+function friseFestons(xDebut: number, xFin: number, y: number, sweep: 0 | 1, r = 14): string {
+  let d = `M ${xDebut} ${y}`;
+  for (let x = xDebut; x + 2 * r <= xFin; x += 2 * r) {
+    d += ` A ${r} ${r} 0 0 ${sweep} ${x + 2 * r} ${y}`;
+  }
+  return `<path d="${d}" fill="none" stroke="${PALETTE.or}" stroke-width="2" opacity="0.8"/>`;
+}
+
+function decorSvg(w: number, h: number): string {
+  const marge1 = 16;
+  const marge2 = 22;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="position:absolute;inset:0;z-index:0" xmlns="http://www.w3.org/2000/svg">
+    ${rayons(w, h)}
+    <rect x="${marge1}" y="${marge1}" width="${w - marge1 * 2}" height="${h - marge1 * 2}" fill="none" stroke="${PALETTE.or}" stroke-width="1.5"/>
+    <rect x="${marge2}" y="${marge2}" width="${w - marge2 * 2}" height="${h - marge2 * 2}" fill="none" stroke="${PALETTE.or}" stroke-width="1"/>
+    ${eventailCoin(marge1, marge1, [15, 35, 55, 75], 56)}
+    ${eventailCoin(w - marge1, marge1, [105, 125, 145, 165], 56)}
+    ${eventailCoin(w - marge1, h - marge1, [195, 215, 235, 255], 56)}
+    ${eventailCoin(marge1, h - marge1, [285, 305, 325, 345], 56)}
+    ${friseFestons(70, w - 70, 34, 1)}
+    ${friseFestons(70, w - 70, h - 34, 0)}
+  </svg>`;
+}
+
+type Evenement = { titre: string; dateHeure: string | null };
+
+// Bloc pour un seul événement (Créateur de visuel : Story / Publication).
+function blocEvenementUnique(titre: string | null, dateHeure: string | null): string {
+  const titreLigne = titre
+    ? `<div style="font-family:'Playfair Display',serif;font-weight:700;font-size:44px;line-height:1.15;color:${PALETTE.or};text-align:center;text-shadow:0 2px 10px rgba(0,0,0,0.35);">${echapperHtml(titre)}</div>`
+    : '';
+  const dateLigne = dateHeure
+    ? `<div style="font-family:'IBM Plex Mono',monospace;font-size:19px;letter-spacing:2px;color:${PALETTE.creme};text-transform:uppercase;text-align:center;">${echapperHtml(dateHeure)}</div>`
+    : '';
+  return titreLigne + dateLigne;
+}
+
+// Bloc pour plusieurs événements (Programme du mois : Affiche).
+function blocEvenementsMultiples(evenements: Evenement[]): string {
+  const items = evenements
+    .slice(0, 8)
+    .map((e) => {
+      const date = e.dateHeure
+        ? ` <span style="color:${PALETTE.or};font-family:'IBM Plex Mono',monospace;font-size:16px;letter-spacing:1px;">— ${echapperHtml(e.dateHeure)}</span>`
+        : '';
+      return `<div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:24px;color:${PALETTE.creme};text-align:center;line-height:1.4;">${echapperHtml(e.titre)}${date}</div>`;
+    })
+    .join('');
+  return `<div style="display:flex;flex-direction:column;gap:16px;align-items:center;">${items}</div>`;
+}
+
+// Gabarit fixe du visuel Café Jean : cadre Art Déco, rayons et médaillon toujours
+// identiques ; seul le bloc "événement(s)" (texte fourni directement par le café)
+// varie selon l'outil (un seul événement, ou une liste pour le programme du mois).
+function construireVisuelHtml(w: number, h: number, blocEvenement: string): string {
+  const ratio = h / w;
+  const justify = ratio >= 1.5 ? 'space-between' : 'center';
+  return `<div style="position:relative;width:${w}px;height:${h}px;overflow:hidden;background:linear-gradient(135deg, ${PALETTE.vert}, ${PALETTE.vertClair});font-family:'Playfair Display',serif;">
+    ${decorSvg(w, h)}
+    <div style="position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:${justify};padding:80px 70px;box-sizing:border-box;gap:28px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:15px;letter-spacing:3px;color:${PALETTE.creme};">${IDENTITE.kicker}</div>
+      <div style="width:340px;height:340px;border-radius:50%;border:1.5px solid ${PALETTE.or};display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;">
+        <div style="font-size:46px;font-weight:700;color:${PALETTE.creme};letter-spacing:1px;">CAFÉ</div>
+        <div style="font-size:46px;font-weight:700;color:${PALETTE.or};letter-spacing:1px;">JEAN</div>
+      </div>
+      ${blocEvenement}
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:17px;letter-spacing:2px;color:${PALETTE.creme};text-align:center;">${IDENTITE.adresseMajuscules}</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:28px;color:${PALETTE.or};text-align:center;">${IDENTITE.quartierVille}</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;color:${PALETTE.or};text-align:center;line-height:1.6;">${IDENTITE.depuis}<br/>${IDENTITE.instagram}</div>
+    </div>
+  </div>`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -211,68 +206,80 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const apiKey = Deno.env.get('MISTRAL_API_KEY');
-    if (!apiKey) {
-      throw new Error('MISTRAL_API_KEY non configuree (Project Settings > Edge Functions > Secrets).');
-    }
-
     const body = await req.json().catch(() => ({}));
-    const brief = typeof body.brief === 'string' ? body.brief.trim() : '';
-    const contexte = typeof body.contexte === 'string' ? body.contexte.trim() : '';
-    const da = typeof body.da === 'string' ? body.da.trim() : '';
     const formatCle = typeof body.format === 'string' && FORMATS[body.format] ? body.format : 'publication';
     const { w, h } = FORMATS[formatCle];
 
-    if (!brief) {
-      return jsonResponse({ ok: false, error: 'Merci de decrire ce que vous voulez publier.' }, 400);
+    // Programme du mois : une liste de plusieurs événements, pas de légende, pas d'IA.
+    const evenementsBruts = Array.isArray(body.evenements) ? body.evenements : null;
+    if (evenementsBruts) {
+      const evenements: Evenement[] = evenementsBruts
+        .filter((e: any) => e && typeof e.titre === 'string' && e.titre.trim())
+        .map((e: any) => ({
+          titre: e.titre.trim(),
+          dateHeure: typeof e.dateHeure === 'string' && e.dateHeure.trim() ? e.dateHeure.trim() : null,
+        }));
+      if (!evenements.length) {
+        return jsonResponse({ ok: false, error: 'Ajoutez au moins un événement avec un titre.' }, 400);
+      }
+      const visuelHtml = construireVisuelHtml(w, h, blocEvenementsMultiples(evenements));
+      return jsonResponse({ ok: true, captions: [], visuelHtml, format: formatCle, largeur: w, hauteur: h });
     }
 
-    let systemPrompt = SYSTEM_PROMPT.replace('{{LARGEUR}}', String(w)).replace('{{HAUTEUR}}', String(h));
-    if (da) {
-      systemPrompt += `\n\nDirection artistique / ton à respecter (donnée par le café) :\n${da}`;
-    }
-    if (contexte) {
-      systemPrompt += `\n\nContexte sur le café (à utiliser pour rester fidèle à son identité, sans le réciter mot pour mot) :\n${contexte}`;
-    }
+    // Créateur de visuel : un seul événement, saisi directement (titre/dateHeure),
+    // avec une légende écrite par l'IA à partir de ces infos + un brief optionnel.
+    const titre = typeof body.titre === 'string' && body.titre.trim() ? body.titre.trim() : null;
+    const dateHeure = typeof body.dateHeure === 'string' && body.dateHeure.trim() ? body.dateHeure.trim() : null;
+    const brief = typeof body.brief === 'string' ? body.brief.trim() : '';
 
-    const mistralRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: MISTRAL_MODEL,
-        temperature: 0.9,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: brief },
-        ],
-      }),
-    });
-
-    if (!mistralRes.ok) {
-      const errText = await mistralRes.text();
-      throw new Error(`Appel Mistral echoue (${mistralRes.status}): ${errText.slice(0, 500)}`);
+    if (!titre && !brief) {
+      return jsonResponse({ ok: false, error: 'Renseignez au moins un titre ou une description.' }, 400);
     }
 
-    const mistralJson = await mistralRes.json();
-    const texte = (mistralJson?.choices?.[0]?.message?.content || '').trim();
+    const visuelHtml = construireVisuelHtml(w, h, blocEvenementUnique(titre, dateHeure));
 
-    let resultat: any;
-    try {
-      const jsonMatch = texte.match(/\{[\s\S]*\}/);
-      resultat = JSON.parse(jsonMatch ? jsonMatch[0] : texte);
-    } catch {
-      resultat = { captions: [{ texte }] };
+    let captions: { texte: string }[] = [];
+    const apiKey = Deno.env.get('MISTRAL_API_KEY');
+    if (apiKey) {
+      const infosPublication = [
+        titre ? `Titre : ${titre}` : null,
+        dateHeure ? `Date/heure : ${dateHeure}` : null,
+        brief ? `Détails donnés par le café : ${brief}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const mistralRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: MISTRAL_MODEL,
+          temperature: 0.7,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT_LEGENDE },
+            { role: 'user', content: infosPublication },
+          ],
+        }),
+      });
+
+      if (mistralRes.ok) {
+        const mistralJson = await mistralRes.json();
+        const texte = (mistralJson?.choices?.[0]?.message?.content || '').trim();
+        try {
+          const jsonMatch = texte.match(/\{[\s\S]*\}/);
+          const resultat = JSON.parse(jsonMatch ? jsonMatch[0] : texte);
+          if (Array.isArray(resultat.captions)) captions = resultat.captions;
+        } catch {
+          // Pas de légende cette fois, le visuel reste généré normalement.
+        }
+      }
     }
 
-    if (typeof resultat.visuelHtml === 'string') {
-      resultat.visuelHtml = nettoyerVisuelHtml(resultat.visuelHtml);
-    }
-
-    return jsonResponse({ ok: true, ...resultat, format: formatCle, largeur: w, hauteur: h });
+    return jsonResponse({ ok: true, captions, visuelHtml, format: formatCle, largeur: w, hauteur: h });
   } catch (err) {
     console.error(err);
     return jsonResponse({ ok: false, error: (err as Error).message }, 500);
