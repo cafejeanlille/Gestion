@@ -3461,6 +3461,18 @@
       <button class="btn" onclick="enregistrerComptage()">Enregistrer le comptage</button>
       <button class="btn ghost" onclick="reinitialiserFormComptage()">Réinitialiser la saisie</button>
     </div>
+
+    <div class="card">
+      <h2>Journal des suppressions</h2>
+      <p class="note">Chaque comptage supprimé ci-dessus reste conservé ici avec son écart (trop perçu / manque en espèces), pour garder une trace complète. Rien n'est jamais définitivement perdu.</p>
+      <div id="comptage-journal-wrap"></div>
+    </div>
+
+    <div class="card">
+      <h2>Journal des lignes billets/pièces effacées</h2>
+      <p class="note">Quand le détail billets/pièces saisi est effacé en cours de comptage (passage en mode simple, réinitialisation de la saisie), il est conservé ici avec son détail.</p>
+      <div id="comptage-journal-lignes-wrap"></div>
+    </div>
   </section>
 
 </main>
@@ -3593,7 +3605,7 @@ function produitsPlouvierDeDepart(){
 function dataParDefaut(){
   return {
     produits: produitsDeDepart(), achats: [], historique: [], seuilAlerte: 5,
-    comptages: [], fondCaisseDefaut: 0,
+    comptages: [], comptagesSupprimes: [], lignesSupprimeesComptage: [], fondCaisseDefaut: 0,
     stockImportVisible: false,
     futsPression: {},
     vinsVerre: {},
@@ -4459,7 +4471,7 @@ function basculerModeComptageSimple(){
   const manuelWrap = document.getElementById('cpt-total-manuel-wrap');
   if(detailWrap) detailWrap.style.display = simple ? 'none' : '';
   if(manuelWrap) manuelWrap.style.display = simple ? '' : 'none';
-  if(simple) viderDenominations();
+  if(simple) viderDenominations('Passage en mode simple (détail billets/pièces effacé)');
   else{
     const billetsEl = document.getElementById('cpt-total-billets');
     const piecesEl = document.getElementById('cpt-total-pieces');
@@ -4478,7 +4490,25 @@ function remplirDenominations(detail){
   });
 }
 
-function viderDenominations(){
+function journaliserLignesEffacees(raison){
+  const { total, detail } = calculerTotalDenominations();
+  const aDesValeurs = Object.values(detail).some(n => n > 0);
+  if(!aDesValeurs) return;
+  const dateEl = document.getElementById('cpt-date');
+  DATA.lignesSupprimeesComptage = DATA.lignesSupprimeesComptage || [];
+  DATA.lignesSupprimeesComptage.push({
+    id: genererId(),
+    date: (dateEl && dateEl.value) || todayIso(),
+    total, detail, raison,
+    supprimeLe: new Date().toISOString()
+  });
+  DATA.lignesSupprimeesComptage.sort((a,b)=> a.supprimeLe < b.supprimeLe ? 1 : -1);
+  sauvegarder();
+  renderJournalSuppressions();
+}
+
+function viderDenominations(raison){
+  if(raison) journaliserLignesEffacees(raison);
   DENOMINATIONS.forEach(d=>{
     const el = document.getElementById(denomInputId(d.valeur));
     if(el) el.value = '';
@@ -5271,7 +5301,7 @@ function renderRecettesTab(){
 }
 
 function reinitialiserFormComptage(){
-  viderDenominations();
+  viderDenominations('Réinitialisation du formulaire de comptage');
   const modeSimpleEl = document.getElementById('cpt-mode-simple');
   if(modeSimpleEl) modeSimpleEl.checked = false;
   const billetsEl = document.getElementById('cpt-total-billets');
@@ -5336,12 +5366,69 @@ function enregistrerComptage(){
 function supprimerComptage(id){
   const c = DATA.comptages.find(x=>x.id===id);
   if(!c) return;
-  if(!confirm(`Supprimer le comptage du ${formatDateFr(c.date)} ? Cette action est définitive.`)) return;
+  if(!confirm(`Supprimer le comptage du ${formatDateFr(c.date)} ? Il restera consultable dans le Journal des suppressions.`)) return;
+  DATA.comptagesSupprimes = DATA.comptagesSupprimes || [];
+  DATA.comptagesSupprimes.push({ ...c, supprimeLe: new Date().toISOString() });
+  DATA.comptagesSupprimes.sort((a,b)=> a.supprimeLe < b.supprimeLe ? 1 : -1);
   DATA.comptages = DATA.comptages.filter(x=>x.id!==id);
   sauvegarder();
   renderComptageHistorique();
+  renderJournalSuppressions();
   renderDashboard();
-  afficherToast('Comptage supprimé.');
+  afficherToast('Comptage supprimé — conservé dans le Journal des suppressions.');
+}
+
+function renderJournalSuppressions(){
+  const wrap = document.getElementById('comptage-journal-wrap');
+  if(wrap){
+    const journal = DATA.comptagesSupprimes || [];
+    if(journal.length === 0){
+      wrap.innerHTML = `<div class="empty-state"><div class="display">Aucune suppression</div>Les comptages supprimés apparaîtront ici.</div>`;
+    }else{
+      const rows = journal.map(c=>{
+        const ecartClass = c.ecart > 0.004 ? 'ecart-pos' : (c.ecart < -0.004 ? 'ecart-neg' : '');
+        const ecartTxt = (c.ecart > 0 ? '+' : '') + formatEuro(c.ecart||0);
+        return `<tr>
+          <td>${new Date(c.supprimeLe).toLocaleString('fr-FR')}</td>
+          <td>${formatDateFr(c.date)}</td>
+          <td class="num">${formatEuro(c.fondCaisse||0)}</td>
+          <td class="num">${formatEuro(c.totalCompte||0)}</td>
+          <td class="num">${formatEuro(c.caIndique||0)}</td>
+          <td class="num ${ecartClass}">${ecartTxt}</td>
+        </tr>`;
+      }).join('');
+      wrap.innerHTML = `<table>
+        <thead><tr><th>Supprimé le</th><th>Date du comptage</th><th class="num">Fond de caisse</th><th class="num">Total compté</th><th class="num">Espèces indiquées</th><th class="num">Trop perçu / manque</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    }
+  }
+
+  const wrapLignes = document.getElementById('comptage-journal-lignes-wrap');
+  if(wrapLignes){
+    const lignes = DATA.lignesSupprimeesComptage || [];
+    if(lignes.length === 0){
+      wrapLignes.innerHTML = `<div class="empty-state"><div class="display">Aucune ligne effacée</div>Les lignes billets/pièces effacées en cours de saisie apparaîtront ici.</div>`;
+    }else{
+      const rows = lignes.map(l=>{
+        const detailTxt = Object.entries(l.detail||{})
+          .filter(([,n]) => n > 0)
+          .map(([v,n]) => `${n}×${libelleDenom(Number(v))}`)
+          .join(', ') || '—';
+        return `<tr>
+          <td>${new Date(l.supprimeLe).toLocaleString('fr-FR')}</td>
+          <td>${formatDateFr(l.date)}</td>
+          <td class="num">${formatEuro(l.total||0)}</td>
+          <td>${escapeHtml(detailTxt)}</td>
+          <td>${escapeHtml(l.raison||'')}</td>
+        </tr>`;
+      }).join('');
+      wrapLignes.innerHTML = `<table>
+        <thead><tr><th>Effacé le</th><th>Date du comptage</th><th class="num">Total effacé</th><th>Détail</th><th>Raison</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    }
+  }
 }
 
 function renderComptageHistorique(){
@@ -5415,6 +5502,7 @@ function renderComptageTab(){
     chargerCaDuJourComptage();
   }
   renderComptageHistorique();
+  renderJournalSuppressions();
 }
 
 /* ============ FACTURES D'ACHAT — extraction automatique ============ */
