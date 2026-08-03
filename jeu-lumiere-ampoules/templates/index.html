@@ -72,6 +72,8 @@
   .secteur.open .secteur-header .chevron{ transform:rotate(180deg); }
   .secteur-corps{ display:none; }
   .secteur.open .secteur-corps{ display:block; }
+  .secteur-brightness{ padding:10px 12px 4px; border-top:1px solid #2c2620; }
+  .secteur-brightness label{ margin:0 0 6px; }
   .ampoule-row{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
     padding:8px 12px; border-top:1px solid #2c2620; font-size:.85rem;
@@ -164,6 +166,14 @@ function hexToHsv(hex){
 function renderSecteurs(bulbList){
   const conteneur = document.getElementById('secteurs');
   if(!conteneur) return;
+  const secteursOuverts = new Set(
+    Array.from(conteneur.querySelectorAll('.secteur.open')).map(el => el.dataset.secteur)
+  );
+  const intensites = {};
+  conteneur.querySelectorAll('.secteur').forEach(el => {
+    const input = el.querySelector('.secteur-brightness input');
+    if(input) intensites[el.dataset.secteur] = input.value;
+  });
   if(!bulbList || !bulbList.length){ conteneur.innerHTML = ''; return; }
   const secteurs = {};
   bulbList.forEach(b => { (secteurs[b.secteur] = secteurs[b.secteur] || []).push(b); });
@@ -178,46 +188,67 @@ function renderSecteurs(bulbList){
           <span class="track"></span>
         </label>
       </div>`).join('');
+    const ouvert = secteursOuverts.has(secteur) ? ' open' : '';
+    const toutActif = actives === ampoules.length;
+    const intensite = intensites[secteur] || 100;
     return `
-      <div class="secteur">
+      <div class="secteur${ouvert}" data-secteur="${secteur}">
         <div class="secteur-header" onclick="this.parentElement.classList.toggle('open')">
           <span>${secteur} (${actives}/${ampoules.length})</span>
+          <label class="toggle" onclick="event.stopPropagation()">
+            <input type="checkbox" ${toutActif ? 'checked' : ''} onclick="toggleSecteur('${secteur}', this.checked)">
+            <span class="track"></span>
+          </label>
           <span class="chevron">▾</span>
         </div>
-        <div class="secteur-corps">${lignes}</div>
+        <div class="secteur-corps">
+          <div class="secteur-brightness" onclick="event.stopPropagation()">
+            <label>Intensité</label>
+            <input type="range" min="1" max="100" value="${intensite}" onchange="setSecteurBrightness('${secteur}', this.value)">
+          </div>
+          ${lignes}
+        </div>
       </div>`;
   }).join('');
 }
 
-async function toggleAmpoule(ip, enabled){
+async function api(url, body){
   try{
-    const res = await fetch('/api/toggle_bulb', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ip, enabled})
-    });
-    const data = await res.json();
-    if(data.ok){ renderSecteurs(data.bulb_list); } else { setStatus(data.error, 'err'); }
+    const res = await fetch(url, body === undefined
+      ? {method:'POST'}
+      : {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    return await res.json();
   } catch(e){
-    setStatus('Erreur: ' + e, 'err');
+    return {ok:false, error:'Erreur: ' + e};
   }
+}
+
+async function toggleAmpoule(ip, enabled){
+  const data = await api('/api/toggle_bulb', {ip, enabled});
+  if(data.ok){ renderSecteurs(data.bulb_list); } else { setStatus(data.error, 'err'); }
+}
+
+async function toggleSecteur(secteur, enabled){
+  const data = await api('/api/toggle_secteur', {secteur, enabled});
+  if(data.ok){ renderSecteurs(data.bulb_list); } else { setStatus(data.error, 'err'); }
+}
+
+async function setSecteurBrightness(secteur, brightness){
+  const data = await api('/api/set_secteur_brightness', {secteur, brightness: Number(brightness)});
+  if(!data.ok){ setStatus(data.error, 'err'); }
 }
 
 async function connecter(auto){
   const btn = document.getElementById('connect-btn');
   btn.disabled = true;
   setStatus(auto ? 'Connexion automatique en cours…' : 'Connexion en cours…');
-  try{
-    const res = await fetch('/api/connect', {method:'POST'});
-    const data = await res.json();
-    if(data.ok){
-      setStatus(`${data.bulbs} ampoule(s) connectée(s)`, 'ok');
-      document.getElementById('day-mode-btn').disabled = false;
-      renderSecteurs(data.bulb_list);
-    } else {
-      setStatus(data.error, 'err');
-    }
-  } catch(e){
-    setStatus('Erreur: ' + e, 'err');
+  const data = await api('/api/connect');
+  if(data.ok){
+    setStatus(`${data.bulbs} ampoule(s) connectée(s)`, 'ok');
+    document.getElementById('day-mode-btn').disabled = false;
+    renderSecteurs(data.bulb_list);
+  } else {
+    setStatus(data.error, 'err');
   }
   btn.disabled = false;
 }
@@ -229,13 +260,8 @@ document.getElementById('day-mode-btn').onclick = async () => {
   const btn = document.getElementById('day-mode-btn');
   btn.disabled = true;
   setStatus('Retour au mode journée…');
-  try{
-    const res = await fetch('/api/day_mode', {method:'POST'});
-    const data = await res.json();
-    setStatus(data.ok ? 'Mode journée rétabli' : data.error, data.ok ? 'ok' : 'err');
-  } catch(e){
-    setStatus('Erreur: ' + e, 'err');
-  }
+  const data = await api('/api/day_mode');
+  setStatus(data.ok ? 'Mode journée rétabli' : data.error, data.ok ? 'ok' : 'err');
   btn.disabled = false;
 };
 
@@ -248,21 +274,12 @@ document.getElementById('start-btn').onclick = async () => {
     params.speed = Number(document.getElementById('speed').value);
     if(selectedEffect === 'strobe') params.color = hexToHsv(document.getElementById('color').value);
   }
-  try{
-    const res = await fetch('/api/start', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({effect: selectedEffect, params})
-    });
-    const data = await res.json();
-    setStatus(data.ok ? `Effet "${effectLabels[selectedEffect]}" lancé` : data.error, data.ok ? 'ok' : 'err');
-  } catch(e){
-    setStatus('Erreur: ' + e, 'err');
-  }
+  const data = await api('/api/start', {effect: selectedEffect, params});
+  setStatus(data.ok ? `Effet "${effectLabels[selectedEffect]}" lancé` : data.error, data.ok ? 'ok' : 'err');
 };
 
 document.getElementById('stop-btn').onclick = async () => {
-  const res = await fetch('/api/stop', {method:'POST'});
-  const data = await res.json();
+  const data = await api('/api/stop');
   setStatus(data.ok ? 'Arrêté' : data.error, data.ok ? 'ok' : 'err');
 };
 </script>

@@ -7,6 +7,7 @@ Puis ouvre http://localhost:5050 (ou http://<ip-de-ce-pc>:5050 depuis un autre a
 import asyncio
 import socket
 import threading
+from functools import wraps
 
 from flask import Flask, jsonify, render_template, request
 
@@ -14,6 +15,18 @@ from controller import EFFECTS, LightShow
 
 app = Flask(__name__)
 show = LightShow()
+
+
+def api_route(fn):
+    """Exécute la route et convertit toute exception en réponse JSON d'erreur."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            payload = fn(*args, **kwargs) or {}
+            return jsonify(ok=True, **payload)
+        except Exception as e:
+            return jsonify(ok=False, error=str(e)), 400
+    return wrapper
 
 
 @app.after_request
@@ -50,54 +63,60 @@ def status():
 
 
 @app.route("/api/connect", methods=["POST"])
+@api_route
 def connect():
-    try:
-        n = run_async(show.connect())
-        return jsonify(ok=True, bulbs=n, **show.status())
-    except Exception as e:
-        return jsonify(ok=False, error=str(e)), 400
+    n = run_async(show.connect(), timeout=30)
+    return dict(bulbs=n, **show.status())
 
 
 @app.route("/api/toggle_bulb", methods=["POST"])
+@api_route
 def toggle_bulb():
     data = request.get_json(force=True) or {}
     ip = data.get("ip")
     enabled = bool(data.get("enabled"))
-    try:
-        show.toggle_bulb(ip, enabled)
-        return jsonify(ok=True, **show.status())
-    except Exception as e:
-        return jsonify(ok=False, error=str(e)), 400
+    run_async(show.toggle_bulb(ip, enabled))
+    return show.status()
+
+
+@app.route("/api/toggle_secteur", methods=["POST"])
+@api_route
+def toggle_secteur():
+    data = request.get_json(force=True) or {}
+    secteur = data.get("secteur")
+    enabled = bool(data.get("enabled"))
+    run_async(show.toggle_secteur(secteur, enabled))
+    return show.status()
+
+
+@app.route("/api/set_secteur_brightness", methods=["POST"])
+@api_route
+def set_secteur_brightness():
+    data = request.get_json(force=True) or {}
+    secteur = data.get("secteur")
+    brightness = data.get("brightness")
+    run_async(show.set_secteur_brightness(secteur, brightness))
 
 
 @app.route("/api/day_mode", methods=["POST"])
+@api_route
 def day_mode():
-    try:
-        run_async(show.restore_day_mode())
-        return jsonify(ok=True)
-    except Exception as e:
-        return jsonify(ok=False, error=str(e)), 400
+    run_async(show.restore_day_mode())
 
 
 @app.route("/api/start", methods=["POST"])
+@api_route
 def start():
     data = request.get_json(force=True) or {}
     effect = data.get("effect", "statique")
     params = data.get("params", {})
-    try:
-        run_async(show.start(effect, params))
-        return jsonify(ok=True)
-    except Exception as e:
-        return jsonify(ok=False, error=str(e)), 400
+    run_async(show.start(effect, params))
 
 
 @app.route("/api/stop", methods=["POST"])
+@api_route
 def stop():
-    try:
-        run_async(show.stop())
-        return jsonify(ok=True)
-    except Exception as e:
-        return jsonify(ok=False, error=str(e)), 400
+    run_async(show.stop())
 
 
 def _local_ip():

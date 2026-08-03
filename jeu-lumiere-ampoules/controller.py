@@ -42,25 +42,69 @@ class LightShow:
         if not config.get("bulbs"):
             raise RuntimeError("Aucune ampoule dans config.json (lance discover.py puis remplis 'bulbs').")
         creds = Credentials(config["tapo_email"], config["tapo_password"])
-        bulbs = []
-        for b in config["bulbs"]:
+
+        async def _connect_one(b):
             dev = await Discover.discover_single(b["ip"], credentials=creds)
             await dev.update()
-            bulbs.append(dev)
-        self.bulbs = bulbs
+            return dev
+
+        # En parallèle plutôt qu'une par une : avec ~30 ampoules, le faire en
+        # séquence dépasse le délai d'attente de l'API et laisse la connexion
+        # se terminer en arrière-plan pendant que le front pense avoir échoué.
+        resultats = await asyncio.gather(
+            *(_connect_one(b) for b in config["bulbs"]), return_exceptions=True
+        )
+        self.bulbs = [r for r in resultats if not isinstance(r, Exception)]
         self.disabled_ips = set()
         return len(self.bulbs)
 
     def _active_bulbs(self):
         return [dev for dev in self.bulbs if dev.host not in self.disabled_ips]
 
-    def toggle_bulb(self, ip: str, enabled: bool):
-        if not any(dev.host == ip for dev in self.bulbs):
+    async def toggle_bulb(self, ip: str, enabled: bool):
+        dev = next((d for d in self.bulbs if d.host == ip), None)
+        if dev is None:
             raise RuntimeError(f"Ampoule {ip} inconnue (pas dans la liste connectée).")
         if enabled:
             self.disabled_ips.discard(ip)
         else:
             self.disabled_ips.add(ip)
+        # Effet immédiat : on éteint/rallume tout de suite, pas seulement au
+        # prochain effet, pour que l'interrupteur ait un effet visible direct.
+        try:
+            if enabled:
+                await dev.turn_on()
+            else:
+                await dev.turn_off()
+        except Exception:
+            pass
+
+    async def toggle_secteur(self, secteur: str, enabled: bool):
+        cibles = [d for d in self.bulbs if secteur_de(d.alias) == secteur]
+        if not cibles:
+            raise RuntimeError(f"Secteur {secteur} inconnu (pas dans la liste connectée).")
+        for dev in cibles:
+            if enabled:
+                self.disabled_ips.discard(dev.host)
+            else:
+                self.disabled_ips.add(dev.host)
+        await asyncio.gather(
+            *((dev.turn_on() if enabled else dev.turn_off()) for dev in cibles),
+            return_exceptions=True,
+        )
+
+    async def set_secteur_brightness(self, secteur: str, brightness: int):
+        cibles = [d for d in self.bulbs if secteur_de(d.alias) == secteur]
+        if not cibles:
+            raise RuntimeError(f"Secteur {secteur} inconnu (pas dans la liste connectée).")
+        await asyncio.gather(
+            *(
+                dev.modules[Module.Light].set_brightness(int(brightness))
+                for dev in cibles
+                if Module.Light in dev.modules
+            ),
+            return_exceptions=True,
+        )
 
     async def restore_day_mode(self):
         if not self.bulbs:
