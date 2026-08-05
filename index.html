@@ -3058,7 +3058,7 @@
         <div class="p-kpi accent">
           <div class="k-label">Seuil de rentabilité</div>
           <div class="k-val" id="pKpiBreakeven">—</div>
-          <div class="k-note">CA TTC mensuel minimum (TVA récupérée sur charges/achats, neutre à l'équilibre)</div>
+          <div class="k-note">CA TTC mensuel minimum (TVA récupérée : 20% ventes/charges fixes, ~15% achats)</div>
         </div>
       </div>
     </div>
@@ -3077,7 +3077,7 @@
           </div>
         </div>
         <div class="rate-row" style="margin-top:-6px;">
-          dont TVA nette à reverser (20%, achats et charges fixes déduits) : <strong id="pTvaVal" style="color:var(--p-chalk);">— €</strong>
+          dont TVA nette à reverser (20% ventes/charges fixes, ~15% achats déduits) : <strong id="pTvaVal" style="color:var(--p-chalk);">— €</strong>
         </div>
         <div class="slider-wrap">
           <input type="range" id="pCaSlider" min="10000" max="35000" step="250" value="20000" oninput="renderPrevisionSimulateur()">
@@ -5007,12 +5007,38 @@ function renderPrevisionTab(){
   renderPrevisionSimulateur();
 }
 
-// Taux de TVA unique simplifié utilisé pour estimer la TVA à reverser dans le
-// simulateur de Prévision. CA, achats ET charges fixes sont saisis TTC — la
-// TVA collectée sur les ventes moins la TVA récupérée sur les achats ET sur
-// les charges fixes (loyer, électricité, assurance, caisse, Sacem...) est
-// retirée du résultat pour approcher le bénéfice réel net.
+// Taux de TVA utilisés pour estimer la TVA à reverser dans le simulateur de
+// Prévision et le seuil de rentabilité du Dashboard. CA, achats ET charges
+// fixes sont saisis TTC.
+// - Ventes (CA) et charges fixes (loyer, électricité, assurance, caisse,
+//   Sacem...) : taux unique simplifié de 20%.
+// - Achats/charges variables : mix observé au café — environ 80% des achats
+//   à 20% (boissons/alcool...) et 20% à 10% (une partie de l'alimentaire) —
+//   d'où un taux de TVA récupérée, rapporté au montant TTC de l'achat,
+//   différent (et plus faible) que sur les ventes.
 const TVA_TAUX_PREVISION = 0.20;
+const TVA_FACTEUR_VENTES_FIXES = TVA_TAUX_PREVISION / (1 + TVA_TAUX_PREVISION); // 20/120 ≈ 16,67 %
+const TVA_RECUP_ACHATS_TAUX = 0.8 * (0.20 / 1.20) + 0.2 * (0.10 / 1.10); // ≈ 15,15 % du TTC achats
+
+// TVA nette à reverser sur un mois = TVA collectée sur le CA moins TVA
+// récupérée sur les achats (taux mixte) et sur les charges fixes (20%).
+// Peut être négative (crédit de TVA) un mois avec de grosses charges/achats.
+function calculerTvaAPayer(caTTC, achatsTTC, chargesFixesTTC){
+  return caTTC * TVA_FACTEUR_VENTES_FIXES
+    - achatsTTC * TVA_RECUP_ACHATS_TAUX
+    - chargesFixesTTC * TVA_FACTEUR_VENTES_FIXES;
+}
+
+// Seuil de rentabilité (CA TTC minimum) : le taux de TVA récupérée sur les
+// achats (~15,15 %) étant plus faible que celui collecté sur le CA
+// (16,67 % = 20/120), la TVA n'est plus tout à fait neutre à l'équilibre
+// (contrairement au cas où tous les taux seraient identiques, qui donnerait
+// simplement fixe/(1-taux)) — d'où cette formule dérivée à partir de
+// calculerTvaAPayer, utilisée aussi bien par Prévision que le Dashboard.
+function calculerSeuilRentabilite(chargesFixesTTC, tauxChargesVariables){
+  const denom = (1 - TVA_FACTEUR_VENTES_FIXES) - tauxChargesVariables * (1 - TVA_RECUP_ACHATS_TAUX);
+  return denom > 0 ? (chargesFixesTTC * (1 - TVA_FACTEUR_VENTES_FIXES)) / denom : null;
+}
 
 function renderPrevisionSimulateur(){
   const slider = document.getElementById('pCaSlider');
@@ -5028,10 +5054,7 @@ function renderPrevisionSimulateur(){
   document.getElementById('pKpiFixe').textContent = formatEuro(fixe);
   document.getElementById('pKpiVariableReel').textContent = formatEuro(variableReel);
 
-  // Seuil de rentabilité : quand toute la TVA (sur les ventes comme sur les
-  // charges) est récupérée, elle est neutre pile à l'équilibre — le seuil en
-  // CA TTC est donc le même qu'avant retraitement TVA (fixe / (1 − taux)).
-  const breakeven = rate < 1 ? fixe / (1 - rate) : null;
+  const breakeven = calculerSeuilRentabilite(fixe, rate);
   document.getElementById('pKpiBreakeven').textContent = breakeven != null ? formatEuro(breakeven) : '—';
 
   const markerEl = document.getElementById('pBreakevenMarker');
@@ -5049,11 +5072,7 @@ function renderPrevisionSimulateur(){
   document.getElementById('pScaleMin').textContent = formatEuro(CA_MIN);
   document.getElementById('pScaleMax').textContent = formatEuro(CA_MAX);
   const variableSimulee = caCurrent * rate;
-  // CA, achats et charges fixes sont saisis TTC. La TVA à reverser = TVA
-  // collectée sur le CA moins la TVA récupérée sur les achats ET les charges
-  // fixes, soit (CA − achats − charges fixes) × 20/120. Négative certains
-  // mois (ex: gros travaux) = crédit de TVA plutôt que TVA à payer.
-  const tvaAPayer = (caCurrent - variableSimulee - fixe) * (TVA_TAUX_PREVISION / (1 + TVA_TAUX_PREVISION));
+  const tvaAPayer = calculerTvaAPayer(caCurrent, variableSimulee, fixe);
   const resultat = caCurrent - fixe - variableSimulee - tvaAPayer;
   document.getElementById('pTvaVal').textContent = formatEuro(tvaAPayer);
   const resEl = document.getElementById('pResVal');
@@ -5069,7 +5088,7 @@ function renderPrevisionSimulateur(){
     tbody.innerHTML = paliers.map(ca=>{
       const variablePalier = ca * rate;
       const totalCharges = fixe + variablePalier;
-      const tvaPalier = (ca - variablePalier - fixe) * (TVA_TAUX_PREVISION / (1 + TVA_TAUX_PREVISION));
+      const tvaPalier = calculerTvaAPayer(ca, variablePalier, fixe);
       const res = ca - totalCharges - tvaPalier;
       return `<tr>
         <td>${formatEuro(ca)}</td>
@@ -6499,13 +6518,10 @@ function renderDashboard(){
     : Math.round(comptagesDuMois.reduce((s,c)=>s+((c.carteContact||0)+(c.carteSansContact||0)),0)*100)/100;
   const cumulCA = Math.round((especesDuMois + carteDuMois) * 100) / 100;
   // Objectif du mois = seuil de rentabilité (même calcul que l'onglet
-  // Prévision : charges fixes couvertes compte tenu du taux de charges
-  // variables — la TVA, récupérée sur achats et charges fixes, est neutre
-  // pile à ce seuil), pas juste les charges déjà engagées ce mois-ci.
+  // Prévision, via calculerSeuilRentabilite), pas juste les charges déjà
+  // engagées ce mois-ci.
   const tauxChargesVariablesRatio = (DATA.tauxChargesVariables != null ? DATA.tauxChargesVariables : 27) / 100;
-  const seuilRentabilite = tauxChargesVariablesRatio < 1
-    ? totalChargesFixesMois / (1 - tauxChargesVariablesRatio)
-    : null;
+  const seuilRentabilite = calculerSeuilRentabilite(totalChargesFixesMois, tauxChargesVariablesRatio);
   const tropPercu = Math.round(comptagesDuMois.reduce((s,c)=>s+(c.ecart||0),0)*100)/100;
   const restant = seuilRentabilite != null ? Math.round((seuilRentabilite - cumulCA)*100)/100 : null;
 
