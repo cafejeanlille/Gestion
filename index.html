@@ -4374,11 +4374,12 @@ function margeVerreProduit(p){
   return null;
 }
 
-const CATEGORIES_PRODUIT = ['Soft', 'Jus de fruit', 'Bières bouteille', 'Kombucha bouteille', 'Alcool bouteille', 'Sirop', 'Fût de bières', 'Vin', 'Autre'];
+const CATEGORIES_PRODUIT = ['Soft', 'Jus de fruit', 'Bières bouteille', 'Kombucha bouteille', 'Alcool bouteille', 'Sirop', 'Fût de bières', 'Vin', 'Boissons chaudes', 'Autre'];
 
 // Devine une catégorie pour les produits existants qui n'en ont pas encore (import initial,
 // anciens produits...), à partir de conventions de nommage déjà utilisées ailleurs dans
-// l'app (fût, volumes 70/75cl). Le café peut ensuite corriger via le menu déroulant.
+// l'app (fût, volumes 70/75cl, cafés/thés courants). Le café peut ensuite corriger via le
+// menu déroulant.
 function deviverCategorieProduit(nom){
   const n = (nom || '').trim();
   if(/^f[uû]t\b/i.test(n)) return 'Fût de bières';
@@ -4386,6 +4387,7 @@ function deviverCategorieProduit(nom){
   if(/kombucha/i.test(n)) return 'Kombucha bouteille';
   if(/75\s*cl/i.test(n)) return 'Vin';
   if(/70\s*cl/i.test(n)) return 'Alcool bouteille';
+  if(/^(expresso|espresso|double expresso|double espresso|allong[ée]|petit cr[èe]me|grand cr[èe]me|cappuccino|latte|russe|chocolat chaud|th[ée]\b)/i.test(n)) return 'Boissons chaudes';
   return 'Autre';
 }
 
