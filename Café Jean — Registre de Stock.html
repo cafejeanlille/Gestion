@@ -4402,10 +4402,17 @@ function renderStockTable(){
     wrap.innerHTML = `<div class="empty-state"><div class="display">Aucun produit pour l'instant</div>Ajoutez votre premier produit ci-dessus.</div>`;
     return;
   }
+  // N'auto-corrige que les catégories vraiment absentes (produit jamais
+  // catégorisé) ou l'ancien nom "Soda" — jamais une valeur simplement
+  // inconnue de CATEGORIES_PRODUIT ici. Sinon, un onglet resté ouvert avec
+  // une version plus ancienne du code (qui ne connaît pas encore une
+  // catégorie récemment ajoutée) écraserait, à chaque synchro, la vraie
+  // catégorie par une valeur "Autre" devinée — c'est ce qui est arrivé en
+  // ajoutant "Boissons chaudes".
   let categorieMigree = false;
   DATA.produits.forEach(p=>{
     if(p.categorie === 'Soda'){ p.categorie = 'Soft'; categorieMigree = true; } // ancien nom de catégorie
-    if(!CATEGORIES_PRODUIT.includes(p.categorie)){ p.categorie = deviverCategorieProduit(p.nom); categorieMigree = true; }
+    if(!p.categorie){ p.categorie = deviverCategorieProduit(p.nom); categorieMigree = true; }
   });
   if(categorieMigree) sauvegarder();
   const seuil = DATA.seuilAlerte;
