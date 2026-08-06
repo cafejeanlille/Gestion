@@ -104,6 +104,12 @@ def day_mode():
     run_async(show.restore_day_mode())
 
 
+@app.route("/api/closing_mode", methods=["POST"])
+@api_route
+def closing_mode():
+    run_async(show.restore_closing_mode())
+
+
 @app.route("/api/start", methods=["POST"])
 @api_route
 def start():

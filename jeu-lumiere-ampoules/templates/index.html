@@ -39,9 +39,12 @@
     width:100%; background:var(--bordeaux); color:#fff; font-weight:600; margin-bottom:8px;
   }
   #day-mode-btn{
-    width:100%; background:var(--or); color:#241f1a; font-weight:600; margin-bottom:16px;
+    width:100%; background:var(--or); color:#241f1a; font-weight:600; margin-bottom:8px;
   }
-  #connect-btn:disabled, #day-mode-btn:disabled{opacity:.5; cursor:default;}
+  #closing-mode-btn{
+    width:100%; background:#e9e4da; color:#241f1a; font-weight:600; margin-bottom:16px;
+  }
+  #connect-btn:disabled, #day-mode-btn:disabled, #closing-mode-btn:disabled{opacity:.5; cursor:default;}
   .status{font-size:.85rem; color:var(--muted); margin-bottom:20px; min-height:1.2em;}
   .status.ok{color:#8fbf7f;}
   .status.err{color:#d97a6c;}
@@ -99,6 +102,7 @@
 
   <button id="connect-btn">Se connecter aux ampoules</button>
   <button id="day-mode-btn" disabled>☀️ Mode journée</button>
+  <button id="closing-mode-btn" disabled>🔆 Mode fermeture</button>
   <div class="status" id="status"></div>
   <div id="secteurs"></div>
 
@@ -246,6 +250,7 @@ async function connecter(auto){
   if(data.ok){
     setStatus(`${data.bulbs} ampoule(s) connectée(s)`, 'ok');
     document.getElementById('day-mode-btn').disabled = false;
+    document.getElementById('closing-mode-btn').disabled = false;
     renderSecteurs(data.bulb_list);
   } else {
     setStatus(data.error, 'err');
@@ -262,6 +267,15 @@ document.getElementById('day-mode-btn').onclick = async () => {
   setStatus('Retour au mode journée…');
   const data = await api('/api/day_mode');
   setStatus(data.ok ? 'Mode journée rétabli' : data.error, data.ok ? 'ok' : 'err');
+  btn.disabled = false;
+};
+
+document.getElementById('closing-mode-btn').onclick = async () => {
+  const btn = document.getElementById('closing-mode-btn');
+  btn.disabled = true;
+  setStatus('Passage en mode fermeture…');
+  const data = await api('/api/closing_mode');
+  setStatus(data.ok ? 'Mode fermeture activé (blanc, luminosité max)' : data.error, data.ok ? 'ok' : 'err');
   btn.disabled = false;
 };
 

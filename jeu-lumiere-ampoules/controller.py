@@ -123,6 +123,27 @@ class LightShow:
 
         await asyncio.gather(*(_set_one(dev) for dev in self._active_bulbs()), return_exceptions=True)
 
+    async def restore_closing_mode(self):
+        """Blanc pur, luminosité maximale : pour la fermeture, tout le monde y voit clair."""
+        if not self.bulbs:
+            raise RuntimeError("Pas d'ampoule connectée, appelle connect() d'abord.")
+        await self.stop()
+
+        async def _set_one(dev):
+            if Module.Light not in dev.modules:
+                await dev.turn_on()
+                return
+            light = dev.modules[Module.Light]
+            if Module.Color in dev.modules:
+                await light.set_state(LightState(light_on=True, hue=0, saturation=0, brightness=100))
+            elif Module.ColorTemperature in dev.modules:
+                await light.set_color_temp(6500, brightness=100)
+            else:
+                await dev.turn_on()
+                await light.set_brightness(100)
+
+        await asyncio.gather(*(_set_one(dev) for dev in self._active_bulbs()), return_exceptions=True)
+
     async def _set_all(self, hue, sat, val):
         await asyncio.gather(
             *(
