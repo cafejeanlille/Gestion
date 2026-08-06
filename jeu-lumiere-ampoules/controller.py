@@ -5,7 +5,7 @@ import random
 import re
 from pathlib import Path
 
-from kasa import Discover, Credentials, Module
+from kasa import Discover, Credentials, LightState, Module
 
 CONFIG_PATH = Path(__file__).parent / "config.json"
 
@@ -206,19 +206,41 @@ class LightShow:
         await self._turn_all(True)
 
     async def _run_disco(self):
-        await self._turn_all(True)
         speed = max(1.0, self.params.get("speed", 6.0))
-        delay = max(0.1, 1.5 / speed)
+        delay = max(0.15, 1.4 / speed)
+
+        async def _flash(dev):
+            # La plupart des ampoules restent allumées avec une couleur vive
+            # qui change à chaque tick ; une minorité s'éteint brièvement pour
+            # casser le rythme, comme des projecteurs de discothèque.
+            # Allumage + couleur envoyés en une seule commande (set_state) :
+            # deux appels séparés (turn_on puis set_hsv) saturaient le Wi-Fi
+            # avec ~30 ampoules en parallèle et beaucoup de couleurs étaient
+            # perdues, laissant les ampoules en blanc froid par défaut.
+            if random.random() < 0.8:
+                if Module.Color in dev.modules:
+                    await dev.modules[Module.Light].set_state(LightState(
+                        light_on=True,
+                        hue=random.randint(0, 359),
+                        saturation=100,
+                        brightness=random.choice((70, 100)),
+                    ))
+                else:
+                    await dev.turn_on()
+            else:
+                await dev.turn_off()
+
         while not self._stop_event.is_set():
             await asyncio.gather(
                 *(
-                    dev.modules[Module.Light].set_hsv(random.randint(0, 359), 100, random.choice((60, 100)))
+                    _flash(dev)
                     for dev in self._active_bulbs()
                     if Module.Light in dev.modules
                 ),
                 return_exceptions=True,
             )
             await self._wait(delay)
+        await self._turn_all(True)
 
     async def _run_son(self):
         import numpy as np
