@@ -5861,6 +5861,27 @@ let factureLignes = [];
 let factureDate = todayIso();
 let factureNumero = '';
 
+// Pré-remplit les champs "fût de pression" d'une ligne de facture à partir
+// de l'état déjà connu du produit (s'il existe et est déjà un fût), sinon
+// avec des valeurs par défaut (30L, 10% de perte). Permet de configurer la
+// contenance et le prix de vente au verre (25/33/50cl) directement depuis
+// l'import de facture, sans repasser par l'onglet Stock.
+function detecterEtInitialiserFut(nom){
+  const match = trouverProduitParNom(nom);
+  const etatConnu = match && DATA.futsPression ? DATA.futsPression[match.id] : null;
+  const estFut = match
+    ? (match.categorie === 'Fût de bières' || !!etatConnu)
+    : /^f[uû]t\b/i.test((nom || '').trim());
+  return {
+    estFut,
+    futVolumeL: etatConnu?.volumeL || 30,
+    futPertePct: etatConnu?.pertePct != null ? etatConnu.pertePct : 10,
+    futVente25: etatConnu?.prixVerre25 || '',
+    futVente33: etatConnu?.prixVerre33 || '',
+    futVente50: etatConnu?.prixVerre50 || ''
+  };
+}
+
 async function analyserFactureFile(event){
   const file = event.target.files[0];
   if(!file) return;
@@ -5872,7 +5893,8 @@ async function analyserFactureFile(event){
     factureLignes = (result.lignes || []).map(l=>({
       nom: l.nom || '',
       quantite: Number(l.quantite) || 0,
-      prixUnitaire: Number(l.prixUnitaire) || 0
+      prixUnitaire: Number(l.prixUnitaire) || 0,
+      ...detecterEtInitialiserFut(l.nom || '')
     }));
     factureDate = (result.date && /^\d{4}-\d{2}-\d{2}$/.test(result.date)) ? result.date : todayIso();
     factureNumero = result.numeroFacture || '';
@@ -5895,13 +5917,47 @@ function renderFactureReview(){
 
   const rowsHtml = factureLignes.map((l,i)=>{
     const match = trouverProduitParNom(l.nom);
+    const futFields = l.estFut ? `
+      <div class="form-grid" style="margin:2px 0 12px 0;">
+        <div>
+          <label>Contenance du fût</label>
+          <select onchange="factureLignes[${i}].futVolumeL=parseFloat(this.value)">
+            <option value="20" ${Number(l.futVolumeL)===20?'selected':''}>20 L</option>
+            <option value="30" ${Number(l.futVolumeL)===30?'selected':''}>30 L</option>
+          </select>
+        </div>
+        <div>
+          <label>Perte (%)</label>
+          <input type="number" min="0" max="100" step="0.1" value="${l.futPertePct}" onchange="factureLignes[${i}].futPertePct=parseFloat(this.value)||0">
+        </div>
+        <div>
+          <label>Vente verre 25cl (€)</label>
+          <input type="number" min="0" step="0.01" value="${l.futVente25}" onchange="factureLignes[${i}].futVente25=parseFloat(this.value)||0">
+        </div>
+        <div>
+          <label>Vente verre 33cl (€)</label>
+          <input type="number" min="0" step="0.01" value="${l.futVente33}" onchange="factureLignes[${i}].futVente33=parseFloat(this.value)||0">
+        </div>
+        <div>
+          <label>Vente verre 50cl (€)</label>
+          <input type="number" min="0" step="0.01" value="${l.futVente50}" onchange="factureLignes[${i}].futVente50=parseFloat(this.value)||0">
+        </div>
+      </div>` : '';
+    const hint = match
+      ? 'Produit existant : correspond à « ' + escapeHtml(match.nom) + ' »'
+      : (l.estFut ? 'Nouveau fût — la contenance et le prix de vente au verre ci-dessus alimentent directement sa marge (onglet Marge).' : "Nouveau produit — pensez à définir son prix de vente dans l'onglet Stock");
     return `<div class="review-row">
         <input type="text" value="${escapeHtml(l.nom)}" onchange="factureLignes[${i}].nom=this.value; renderFactureReview()">
         <input type="number" step="1" min="0" value="${l.quantite}" onchange="factureLignes[${i}].quantite=parseFloat(this.value)||0">
         <input type="number" step="0.01" min="0" value="${l.prixUnitaire}" onchange="factureLignes[${i}].prixUnitaire=parseFloat(this.value)||0">
         <button class="icon-btn" title="Retirer" onclick="factureLignes.splice(${i},1); renderFactureReview()">🗑</button>
       </div>
-      <div class="review-match ${match?'ok':'new'}">${match ? 'Produit existant : correspond à « ' + escapeHtml(match.nom) + ' »' : "Nouveau produit — pensez à définir son prix de vente dans l'onglet Stock"}</div>`;
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:2px 0 6px 0;">
+        <input type="checkbox" ${l.estFut?'checked':''} onchange="factureLignes[${i}].estFut=this.checked; renderFactureReview()">
+        Fût de bière (pression) — le prix d'achat ci-dessus est celui du fût entier
+      </label>
+      ${futFields}
+      <div class="review-match ${match?'ok':'new'}">${hint}</div>`;
   }).join('');
 
   wrap.innerHTML = `
@@ -5912,7 +5968,7 @@ function renderFactureReview(){
     <div class="review-row review-head"><span>Produit</span><span>Quantité</span><span>Prix d'achat</span><span></span></div>
     ${rowsHtml}
     <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
-      <button class="btn ghost" onclick="factureLignes.push({nom:'',quantite:0,prixUnitaire:0}); renderFactureReview()">+ Ajouter une ligne</button>
+      <button class="btn ghost" onclick="factureLignes.push({nom:'',quantite:0,prixUnitaire:0,...detecterEtInitialiserFut('')}); renderFactureReview()">+ Ajouter une ligne</button>
       <button class="btn" onclick="validerFactureReview()">Valider et mettre à jour le stock</button>
     </div>`;
 }
@@ -5922,6 +5978,7 @@ function validerFactureReview(){
   if(lignesValides.length === 0){ afficherToast('Aucune ligne valide à ajouter.'); return; }
 
   let nouveaux = 0;
+  let futsConfigures = 0;
   lignesValides.forEach(l=>{
     let p = trouverProduitParNom(l.nom);
     if(!p){
@@ -5936,6 +5993,23 @@ function validerFactureReview(){
     p.prixAchat = nouvelleQte > 0
       ? Math.round((((ancienneQte * ancienPrix) + (l.quantite * l.prixUnitaire)) / nouvelleQte) * 100) / 100
       : l.prixUnitaire;
+
+    // Fût de bière : le prix d'achat de la ligne est celui du fût entier (pas
+    // une moyenne pondérée comme p.prixAchat ci-dessus) — c'est ce prix qui
+    // sert au calcul du coût au cl / de la marge au verre dans futsPression.
+    if(l.estFut){
+      p.categorie = 'Fût de bières';
+      DATA.futsPression = DATA.futsPression || {};
+      DATA.futsPression[p.id] = {
+        volumeL: l.futVolumeL || 30,
+        prixFut: l.prixUnitaire,
+        pertePct: l.futPertePct != null ? l.futPertePct : 10,
+        prixVerre25: parseFloat(l.futVente25) || 0,
+        prixVerre33: parseFloat(l.futVente33) || 0,
+        prixVerre50: parseFloat(l.futVente50) || 0
+      };
+      futsConfigures++;
+    }
 
     DATA.achats.push({
       id: genererId(),
@@ -5957,8 +6031,12 @@ function validerFactureReview(){
   renderAchatSelect();
   renderAchatsTable();
   renderStockTable();
-  afficherToast(nouveaux > 0
-    ? `Stock mis à jour (${nouveaux} nouveau(x) produit(s) créé(s) — pensez à définir leur prix de vente dans l'onglet Stock).`
+  renderFutSelect();
+  const messages = [];
+  if(nouveaux > 0) messages.push(`${nouveaux} nouveau(x) produit(s) créé(s)`);
+  if(futsConfigures > 0) messages.push(`${futsConfigures} fût(s) configuré(s) (marge visible dans l'onglet Marge)`);
+  afficherToast(messages.length > 0
+    ? `Stock mis à jour (${messages.join(', ')} — pensez à définir le prix de vente des nouveaux produits simples dans l'onglet Stock).`
     : 'Stock mis à jour.');
 }
 
