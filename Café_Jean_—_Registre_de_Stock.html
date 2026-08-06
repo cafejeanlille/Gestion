@@ -1096,6 +1096,7 @@
     <button class="tab-btn" data-tab="stock">Stock</button>
     <button class="tab-btn" data-tab="recettes">Recettes</button>
     <button class="tab-btn" data-tab="charges">Charges</button>
+    <button class="tab-btn" data-tab="marge">Marge</button>
     <button class="tab-btn" data-tab="planning">Planning</button>
     <button class="tab-btn" data-tab="plouvier">Commande Plouvier</button>
     <button class="tab-btn" data-tab="previsions">Prévision</button>
@@ -2824,6 +2825,41 @@
     </div>
   </section>
 
+  <!-- TAB: MARGE -->
+  <section class="tab-panel" id="tab-marge">
+    <div class="card">
+      <h2>Marge par produit</h2>
+      <p class="note">Reprend le prix d'achat (mis à jour automatiquement par vos factures dans l'onglet Charges) et le prix de vente de chaque produit du Stock. Cliquez sur un en-tête de colonne pour trier.</p>
+      <div class="stats-row" style="margin-bottom:14px;">
+        <div class="stat-box gold">
+          <div class="label">Marge moyenne</div>
+          <div class="value" id="margeMoyennePct">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Produits avec marge calculable</div>
+          <div class="value" id="margeNbCalculable">0</div>
+        </div>
+        <div class="stat-box accent">
+          <div class="label">Sans prix de vente renseigné</div>
+          <div class="value" id="margeNbSansPrix">0</div>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-bottom:14px;">
+        <div>
+          <label for="marge-recherche">Rechercher un produit</label>
+          <input type="text" id="marge-recherche" placeholder="Nom du produit..." oninput="renderMargeTab()">
+        </div>
+        <div>
+          <label for="marge-filtre-categorie">Catégorie</label>
+          <select id="marge-filtre-categorie" onchange="renderMargeTab()">
+            <option value="">Toutes catégories</option>
+          </select>
+        </div>
+      </div>
+      <div id="marge-table-wrap"></div>
+    </div>
+  </section>
+
   <!-- TAB: PLANNING -->
   <section class="tab-panel" id="tab-planning">
     <div class="card">
@@ -3769,6 +3805,7 @@ function activerOnglet(tab){
   if(tab === 'soir') renderSoirTable();
   if(tab === 'dashboard') renderDashboard();
   if(tab === 'charges'){ renderAchatSelect(); renderAchatsTable(); renderChargesFixesTable(); }
+  if(tab === 'marge') renderMargeTab();
   if(tab === 'comptage') renderComptageTab();
   if(tab === 'planning') renderPlanningTab();
   if(tab === 'lumiere'){ chargerAdresseLumiere(); if(!lumiereDejaConnecte) lumiereConnecter(); }
@@ -4419,6 +4456,163 @@ function renderStockTable(){
   wrap.innerHTML = `<div style="overflow-x:auto;"><table style="min-width:1040px;">
     <thead><tr>
       <th>Produit</th><th>Catégorie</th><th class="num">Quantité</th><th class="num">Prix d'achat</th><th class="num">Prix de vente</th><th class="num">Valeur stock</th><th class="num">Marge</th><th>Statut</th><th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+/* ============ MARGE PAR PRODUIT ============ */
+
+// Calcule la marge € et % d'un produit du stock pour l'onglet Marge, avec un
+// repère textuel indiquant la base du calcul. Même logique que
+// margeVerreProduit (badge de l'onglet Stock) pour les produits vendus au
+// verre (fût, vin, alcool, sirop), mais renvoie des valeurs numériques
+// exploitables pour le tri plutôt qu'un texte déjà formaté.
+function margeInfoProduit(p){
+  const fut = DATA.futsPression && DATA.futsPression[p.id];
+  if(fut && fut.volumeL > 0 && fut.prixFut > 0){
+    const volumeUtileCl = fut.volumeL * 100 * (1 - (fut.pertePct || 0) / 100);
+    const coutParCl = volumeUtileCl > 0 ? fut.prixFut / volumeUtileCl : 0;
+    for(const taille of [33, 25, 50]){
+      const prixVente = fut['prixVerre' + taille] || 0;
+      if(coutParCl > 0 && prixVente > 0){
+        const margeEuro = prixVente - (coutParCl * taille);
+        return { margeEuro, margePct: (margeEuro / prixVente) * 100, repere: `verre ${taille}cl` };
+      }
+    }
+    return { margeEuro: null, margePct: null, repere: 'au fût' };
+  }
+  const vin = DATA.vinsVerre && DATA.vinsVerre[p.id];
+  if(vin && vin.volumeCl > 0){
+    const volumeUtileCl = vin.volumeCl * (1 - (vin.pertePct || 0) / 100);
+    const coutParCl = volumeUtileCl > 0 ? (p.prixAchat || 0) / volumeUtileCl : 0;
+    if(coutParCl > 0 && vin.prixVerre12 > 0){
+      const margeEuro = vin.prixVerre12 - (coutParCl * 12);
+      return { margeEuro, margePct: (margeEuro / vin.prixVerre12) * 100, repere: 'verre 12cl' };
+    }
+    if((p.prixAchat || 0) > 0 && (p.prixVente || 0) > 0){
+      const margeEuro = p.prixVente - p.prixAchat;
+      return { margeEuro, margePct: (margeEuro / p.prixVente) * 100, repere: `bouteille ${vin.volumeCl}cl` };
+    }
+    return { margeEuro: null, margePct: null, repere: 'au verre' };
+  }
+  const alcool = DATA.alcoolsVerre && DATA.alcoolsVerre[p.id];
+  if(alcool && alcool.volumeCl > 0 && alcool.doseCl > 0){
+    const volumeUtileCl = alcool.volumeCl * (1 - (alcool.pertePct || 0) / 100);
+    const coutParCl = volumeUtileCl > 0 ? (p.prixAchat || 0) / volumeUtileCl : 0;
+    if(coutParCl > 0 && alcool.prixVenteDose > 0){
+      const margeEuro = alcool.prixVenteDose - (coutParCl * alcool.doseCl);
+      return { margeEuro, margePct: (margeEuro / alcool.prixVenteDose) * 100, repere: `dose ${alcool.doseCl}cl` };
+    }
+    return { margeEuro: null, margePct: null, repere: 'à la dose' };
+  }
+  const sirop = DATA.siropsVerre && DATA.siropsVerre[p.id];
+  if(sirop && sirop.volumeCl > 0 && sirop.doseCl > 0){
+    const volumeUtileCl = sirop.volumeCl * (1 - (sirop.pertePct || 0) / 100);
+    const coutParCl = volumeUtileCl > 0 ? (p.prixAchat || 0) / volumeUtileCl : 0;
+    if(coutParCl > 0 && sirop.prixVenteDose > 0){
+      const margeEuro = sirop.prixVenteDose - (coutParCl * sirop.doseCl);
+      return { margeEuro, margePct: (margeEuro / sirop.prixVenteDose) * 100, repere: `dose ${sirop.doseCl}cl` };
+    }
+    return { margeEuro: null, margePct: null, repere: 'à la dose' };
+  }
+  if((p.prixVente || 0) > 0){
+    const margeEuro = p.prixVente - (p.prixAchat || 0);
+    return { margeEuro, margePct: (margeEuro / p.prixVente) * 100, repere: 'unité' };
+  }
+  return { margeEuro: null, margePct: null, repere: 'unité' };
+}
+
+let margeTri = { colonne: 'margePct', sens: 'desc' };
+function trierMargeTab(colonne){
+  if(margeTri.colonne === colonne){
+    margeTri.sens = margeTri.sens === 'asc' ? 'desc' : 'asc';
+  }else{
+    margeTri = { colonne, sens: (colonne === 'nom' || colonne === 'categorie') ? 'asc' : 'desc' };
+  }
+  renderMargeTab();
+}
+
+function renderMargeTab(){
+  const wrap = document.getElementById('marge-table-wrap');
+  if(!wrap) return;
+
+  const selectCat = document.getElementById('marge-filtre-categorie');
+  if(selectCat && selectCat.options.length <= 1){
+    selectCat.innerHTML = '<option value="">Toutes catégories</option>'
+      + CATEGORIES_PRODUIT.map(c => `<option value="${c}">${c}</option>`).join('');
+  }
+
+  const recherche = (document.getElementById('marge-recherche')?.value || '').trim().toLowerCase();
+  const filtreCategorie = selectCat?.value || '';
+
+  let lignes = DATA.produits
+    .filter(p => !filtreCategorie || p.categorie === filtreCategorie)
+    .filter(p => !recherche || p.nom.toLowerCase().includes(recherche))
+    .map(p => ({ produit: p, ...margeInfoProduit(p) }));
+
+  const nbCalculable = lignes.filter(l => l.margeEuro != null).length;
+  const nbSansPrix = lignes.length - nbCalculable;
+  const margeMoyennePct = nbCalculable > 0
+    ? lignes.filter(l => l.margePct != null).reduce((s, l) => s + l.margePct, 0) / nbCalculable
+    : null;
+
+  const elMoy = document.getElementById('margeMoyennePct');
+  if(elMoy) elMoy.textContent = margeMoyennePct != null ? formatPct(margeMoyennePct) : '—';
+  const elCalc = document.getElementById('margeNbCalculable');
+  if(elCalc) elCalc.textContent = String(nbCalculable);
+  const elSans = document.getElementById('margeNbSansPrix');
+  if(elSans) elSans.textContent = String(nbSansPrix);
+
+  if(lignes.length === 0){
+    wrap.innerHTML = `<div class="empty-state"><div class="display">Aucun produit</div>Ajustez votre recherche ou vos filtres.</div>`;
+    return;
+  }
+
+  const { colonne, sens } = margeTri;
+  const valeurTri = (l) => {
+    switch(colonne){
+      case 'nom': return l.produit.nom.toLowerCase();
+      case 'categorie': return l.produit.categorie;
+      case 'prixAchat': return l.produit.prixAchat || 0;
+      case 'prixVente': return l.produit.prixVente || 0;
+      case 'margeEuro': return l.margeEuro == null ? -Infinity : l.margeEuro;
+      default: return l.margePct == null ? -Infinity : l.margePct;
+    }
+  };
+  lignes.sort((a, b) => {
+    const va = valeurTri(a), vb = valeurTri(b);
+    if(va < vb) return sens === 'asc' ? -1 : 1;
+    if(va > vb) return sens === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const fleche = (col) => colonne === col ? (sens === 'asc' ? ' ▲' : ' ▼') : '';
+  const th = (col, label, classe) => `<th class="${classe || ''}" style="cursor:pointer;" onclick="trierMargeTab('${col}')">${label}${fleche(col)}</th>`;
+
+  const rows = lignes.map(l => {
+    const p = l.produit;
+    const bas = p.quantite <= DATA.seuilAlerte;
+    return `<tr class="${bas ? 'low-stock' : ''}">
+      <td>${escapeHtml(p.nom)}</td>
+      <td>${escapeHtml(p.categorie)}</td>
+      <td class="num">${formatEuro(p.prixAchat || 0)}</td>
+      <td class="num">${formatEuro(p.prixVente || 0)}</td>
+      <td class="num">${l.margeEuro != null ? formatEuro(l.margeEuro) : '—'}</td>
+      <td class="num">${l.margePct != null ? formatPct(l.margePct) : '—'}</td>
+      <td style="font-size:12px;color:var(--ink-soft);">${escapeHtml(l.repere)}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<div style="overflow-x:auto;"><table style="min-width:820px;">
+    <thead><tr>
+      ${th('nom', 'Produit')}
+      ${th('categorie', 'Catégorie')}
+      ${th('prixAchat', "Prix d'achat", 'num')}
+      ${th('prixVente', 'Prix de vente', 'num')}
+      ${th('margeEuro', 'Marge', 'num')}
+      ${th('margePct', 'Marge %', 'num')}
+      <th>Repère</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
