@@ -1,22 +1,8 @@
-jeu-lumiere-ampoules/config.json
-jeu-lumiere-ampoules/__pycache__/
-jeu-lumiere-ampoules/server_log.txt
-jeu-lumiere-ampoules/server_err.txt
-.netlify/
-
-# Documents et fichiers personnels/métier hors code (pas versionnés)
-/Café_Jean_—_Registre_de_Stock.LOCAL_BACKUP.html
-/Facture/
-/Plouvier facture.pdf
-/cafe-jean-affiche-A1.pdf
-/cafejeanwallpaperdesktop.png
-/cafejeanwallpaperiphone.png
-/carte-cafe-jean-A5.pdf
-/fdf.png
-/logo-cafe-jean-transparent.png
-/programme-cafe-jean-2026-07-25.png
-/registre-stock-2026-07-25.json
-/scan-reseau-resultats.csv
-/scan.html
-/story-cafe-jean-match-France-Espagne.png
-/visuel-cafe-jean-2026-07-25.png
+.env
+.env.*
+*.key
+*.pem
+secrets.json
+__pycache__/
+*.py[cod]
+resultats.txt
