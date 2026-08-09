@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import html
+import os
 import threading
 
 import hashlib
@@ -185,6 +186,34 @@ def format_breach_details(breach: dict) -> str:
         f"{data_classes or 'Non précisé'}</p>"
         f"</article>"
     )
+
+
+def render_result_card(
+    heading: str,
+    masked_account: str,
+    status_class: str,
+    status_icon: str,
+    status_title: str,
+    status_detail: str,
+    *,
+    extra_html: str = "",
+    privacy_note: str = "",
+) -> str:
+    """Construit la carte HTML commune aux pages de résultat de vérification
+    d'e-mail (utilisée par /demo-from-email et /check-email), pour éviter de
+    dupliquer la structure de la carte à chaque endpoint."""
+    privacy_block = f'<div class="privacy-note">{privacy_note}</div>' if privacy_note else ""
+    return f"""
+<div class="card result-card">
+<h2>{heading}</h2>
+<p class="account">E-mail : <strong>{html.escape(masked_account)}</strong></p>
+<div class="status {status_class}">
+  <div class="status-title">{status_icon} {status_title}</div>
+  <div>{status_detail}</div>
+</div>
+{extra_html}
+{privacy_block}
+</div>"""
 
 
 # --------------------------------------------------------------------------
@@ -396,8 +425,8 @@ RESULTS_FILE = Path("resultats.txt")
 # (HTTP, pas TLS) et ne doit donc pas être exposé au réseau local. Ne changez
 # HOST que si vous savez ce que vous faites (ex. usage derrière un reverse
 # proxy TLS de confiance).
-WEB_HOST = __import__("os").environ.get("HOST", "127.0.0.1")
-WEB_PORT = int(__import__("os").environ.get("PORT", "8000"))
+WEB_HOST = os.environ.get("HOST", "127.0.0.1")
+WEB_PORT = int(os.environ.get("PORT", "8000"))
 
 # Protège l'écriture (création + append) de RESULTS_FILE contre les accès
 # concurrents : ThreadingHTTPServer traite chaque requête sur son propre
@@ -535,52 +564,34 @@ def run_web_server() -> None:
                 masked = mask_email(email)
 
                 if not account.checked:
-                    result = f"""
-<div class="card result-card">
-<h2>Résultat — mode démo alimenté par la vérification Internet</h2>
-<p class="account">E-mail : <strong>{html.escape(masked)}</strong></p>
-<div class="status warn">
-  <div class="status-title">⚠️ Vérification impossible</div>
-  <div>{html.escape(account.error or "Erreur inconnue.")}</div>
-</div>
-</div>"""
+                    result = render_result_card(
+                        "Résultat — mode démo alimenté par la vérification Internet",
+                        masked, "warn", "⚠️", "Vérification impossible",
+                        html.escape(account.error or "Erreur inconnue."),
+                    )
                 elif account.breaches:
                     details = "".join(format_breach_details(b) for b in account.breaches)
-                    result = f"""
-<div class="card result-card">
-<h2>Résultat complet</h2>
-<p class="account">E-mail : <strong>{html.escape(masked)}</strong></p>
-
-<div class="status danger">
-  <div class="status-title">🚨 COMPROMIS</div>
-  <div><strong>{len(account.breaches)}</strong> fuite(s) retournée(s) par le service.</div>
-</div>
-
-<div class="section">
-  <h3>Informations récupérées</h3>
-  {details}
-</div>
-
-<div class="recommendation">
-<strong>Important :</strong> cette vue reprend les métadonnées réellement retournées
-par le service dans une présentation de démonstration. Elle ne récupère pas et
-n'affiche pas les valeurs des données volées.
-</div>
-
-<div class="privacy-note">
-🔒 Aucun mot de passe, token, cookie ou autre secret provenant d'une fuite n'est affiché.
-</div>
-</div>"""
+                    result = render_result_card(
+                        "Résultat complet", masked, "danger", "🚨", "COMPROMIS",
+                        f"<strong>{len(account.breaches)}</strong> fuite(s) retournée(s) par le service.",
+                        extra_html=(
+                            f'<div class="section"><h3>Informations récupérées</h3>{details}</div>'
+                            '<div class="recommendation">'
+                            "<strong>Important :</strong> cette vue reprend les métadonnées réellement "
+                            "retournées par le service dans une présentation de démonstration. Elle ne "
+                            "récupère pas et n'affiche pas les valeurs des données volées."
+                            "</div>"
+                        ),
+                        privacy_note=(
+                            "🔒 Aucun mot de passe, token, cookie ou autre secret provenant d'une fuite "
+                            "n'est affiché."
+                        ),
+                    )
                 else:
-                    result = f"""
-<div class="card result-card">
-<h2>Résultat complet</h2>
-<p class="account">E-mail : <strong>{html.escape(masked)}</strong></p>
-<div class="status ok">
-  <div class="status-title">✓ Aucun compromis connu</div>
-  <div>Aucune fuite connue n'a été retournée pour cette adresse.</div>
-</div>
-</div>"""
+                    result = render_result_card(
+                        "Résultat complet", masked, "ok", "✓", "Aucun compromis connu",
+                        "Aucune fuite connue n'a été retournée pour cette adresse.",
+                    )
 
                 self.send_html(web_page(result_html=result))
                 return
@@ -628,49 +639,39 @@ n'affiche pas les valeurs des données volées.
                 )
 
                 if not account.checked:
-                    result = f"""
-<div class="card result-card">
-<h2>Résultat de la vérification — MODE DÉMO</h2>
-<p class="account">E-mail : <strong>{html.escape(masked)}</strong></p>
-<div class="status warn">
-  <div class="status-title">⚠️ Vérification impossible</div>
-  <div>{html.escape(account.error or "Erreur inconnue.")}</div>
-</div>
-{demo_notice}
-<div class="privacy-note">🔒 Aucun mot de passe ou secret volé n'est affiché.</div>
-</div>"""
+                    result = render_result_card(
+                        "Résultat de la vérification — MODE DÉMO",
+                        masked, "warn", "⚠️", "Vérification impossible",
+                        html.escape(account.error or "Erreur inconnue."),
+                        extra_html=demo_notice,
+                        privacy_note="🔒 Aucun mot de passe ou secret volé n'est affiché.",
+                    )
                 elif account.breaches:
                     details = "".join(format_breach_details(b) for b in account.breaches)
-                    result = f"""
-<div class="card result-card">
-<h2>Résultat de la vérification — MODE DÉMO</h2>
-<p class="account">E-mail : <strong>{html.escape(masked)}</strong></p>
-<div class="status danger">
-  <div class="status-title">🚨 COMPROMIS (données fictives)</div>
-  <div><strong>{len(account.breaches)}</strong> fuite(s) simulée(s) associée(s) à cette adresse de démonstration.</div>
-</div>
-<div class="section">
-  <h3>Détails des compromissions</h3>
-  {details}
-</div>
-{demo_notice}
-<div class="privacy-note">
-🔒 Seules les métadonnées de compromission sont affichées. Les mots de passe,
-tokens et autres secrets volés ne sont jamais affichés.
-</div>
-</div>"""
+                    result = render_result_card(
+                        "Résultat de la vérification — MODE DÉMO",
+                        masked, "danger", "🚨", "COMPROMIS (données fictives)",
+                        (
+                            f"<strong>{len(account.breaches)}</strong> fuite(s) simulée(s) associée(s) "
+                            "à cette adresse de démonstration."
+                        ),
+                        extra_html=(
+                            f'<div class="section"><h3>Détails des compromissions</h3>{details}</div>'
+                            f"{demo_notice}"
+                        ),
+                        privacy_note=(
+                            "🔒 Seules les métadonnées de compromission sont affichées. Les mots de "
+                            "passe, tokens et autres secrets volés ne sont jamais affichés."
+                        ),
+                    )
                 else:
-                    result = f"""
-<div class="card result-card">
-<h2>Résultat de la vérification — MODE DÉMO</h2>
-<p class="account">E-mail : <strong>{html.escape(masked)}</strong></p>
-<div class="status ok">
-  <div class="status-title">✓ Aucun compromis connu (données fictives)</div>
-  <div>Aucune fuite simulée n'a été retournée pour cette adresse.</div>
-</div>
-{demo_notice}
-<div class="privacy-note">🔒 Aucun mot de passe ou secret n'est affiché ou enregistré.</div>
-</div>"""
+                    result = render_result_card(
+                        "Résultat de la vérification — MODE DÉMO",
+                        masked, "ok", "✓", "Aucun compromis connu (données fictives)",
+                        "Aucune fuite simulée n'a été retournée pour cette adresse.",
+                        extra_html=demo_notice,
+                        privacy_note="🔒 Aucun mot de passe ou secret n'est affiché ou enregistré.",
+                    )
 
                 self.send_html(web_page(result_html=result))
                 return
@@ -752,7 +753,12 @@ tokens et autres secrets volés ne sont jamais affichés.
   🔒 Le mot de passe complet n'est jamais affiché, enregistré ou envoyé.
 </div>
 </div>"""
-            # Explicitly drop the secret before returning.
+            # Note : ceci ne fait que dissocier le nom `password` de la chaîne
+            # en mémoire — les chaînes Python étant immuables, la valeur elle-
+            # même n'est pas effacée et peut rester en mémoire jusqu'au passage
+            # du garbage collector. Ce n'est donc pas un nettoyage garanti,
+            # simplement une précaution pour éviter toute réutilisation
+            # accidentelle de `password` plus loin dans la fonction.
             password = None
             self.send_html(web_page(result_html=result))
 
@@ -826,7 +832,7 @@ def find_duplicate_passwords(entries: list[tuple[str | None, str]]) -> str | Non
     )
     lines.append("")
     for idxs in duplicate_groups.values():
-        pwd_sample = next(pwd for i, (_e, pwd) in enumerate(entries, start=1) if i == idxs[0])
+        pwd_sample = entries[idxs[0] - 1][1]
         labels = [entry_label(i, entries[i - 1][0]) for i in idxs]
         lines.append(f"- `{mask(pwd_sample)}` réutilisé par : " + ", ".join(labels))
     lines.append("")
