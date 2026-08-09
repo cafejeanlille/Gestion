@@ -392,19 +392,22 @@ Elles ne proviennent d'aucune fuite réelle.
 # --------------------------------------------------------------------------
 
 RESULTS_FILE = Path("resultats.txt")
-WEB_HOST = "0.0.0.0"
+# 127.0.0.1 par défaut : le formulaire transmet des mots de passe en clair
+# (HTTP, pas TLS) et ne doit donc pas être exposé au réseau local. Ne changez
+# HOST que si vous savez ce que vous faites (ex. usage derrière un reverse
+# proxy TLS de confiance).
+WEB_HOST = __import__("os").environ.get("HOST", "127.0.0.1")
 WEB_PORT = int(__import__("os").environ.get("PORT", "8000"))
+
+# Protège l'écriture (création + append) de RESULTS_FILE contre les accès
+# concurrents : ThreadingHTTPServer traite chaque requête sur son propre
+# thread, donc plusieurs "/check" simultanés pourraient sinon se marcher
+# dessus lors de la création du fichier (check-then-act).
+_RESULTS_LOCK = threading.Lock()
 
 
 def save_web_result(label: str, strength: StrengthResult, breach: BreachResult) -> None:
     """Enregistre uniquement le résultat masqué, jamais le mot de passe."""
-    if not RESULTS_FILE.exists():
-        RESULTS_FILE.write_text(
-            "Résultats des vérifications locales\n"
-            "===================================\n\n",
-            encoding="utf-8",
-        )
-
     if not breach.checked:
         breach_text = f"Erreur lors de la vérification de fuite : {breach.error}"
     elif breach.pwned:
@@ -421,8 +424,15 @@ def save_web_result(label: str, strength: StrengthResult, breach: BreachResult) 
         f"Fuite : {breach_text}\n"
         f"{'-' * 60}\n"
     )
-    with RESULTS_FILE.open("a", encoding="utf-8") as f:
-        f.write(entry)
+    with _RESULTS_LOCK:
+        if not RESULTS_FILE.exists():
+            RESULTS_FILE.write_text(
+                "Résultats des vérifications locales\n"
+                "===================================\n\n",
+                encoding="utf-8",
+            )
+        with RESULTS_FILE.open("a", encoding="utf-8") as f:
+            f.write(entry)
 
 
 def web_page(message: str = "", result_html: str = "") -> bytes:
@@ -608,35 +618,42 @@ n'affiche pas les valeurs des données volées.
                 account = check_account_breaches(email)
                 masked = mask_email(email)
 
+                demo_notice = (
+                    "<div class='recommendation'>"
+                    "<strong>MODE DÉMO :</strong> cette vérification d'e-mail n'interroge aucun "
+                    "service de fuites réel. Seules deux adresses fictives (demo@example.com, "
+                    "test@example.com) renvoient un résultat 'compromis' ; toute autre adresse "
+                    "s'affichera comme non compromise, que ce soit vrai ou non."
+                    "</div>"
+                )
+
                 if not account.checked:
                     result = f"""
 <div class="card result-card">
-<h2>Résultat de la vérification</h2>
+<h2>Résultat de la vérification — MODE DÉMO</h2>
 <p class="account">E-mail : <strong>{html.escape(masked)}</strong></p>
 <div class="status warn">
   <div class="status-title">⚠️ Vérification impossible</div>
   <div>{html.escape(account.error or "Erreur inconnue.")}</div>
 </div>
+{demo_notice}
 <div class="privacy-note">🔒 Aucun mot de passe ou secret volé n'est affiché.</div>
 </div>"""
                 elif account.breaches:
                     details = "".join(format_breach_details(b) for b in account.breaches)
                     result = f"""
 <div class="card result-card">
-<h2>Résultat de la vérification</h2>
+<h2>Résultat de la vérification — MODE DÉMO</h2>
 <p class="account">E-mail : <strong>{html.escape(masked)}</strong></p>
 <div class="status danger">
-  <div class="status-title">🚨 COMPROMIS</div>
-  <div><strong>{len(account.breaches)}</strong> fuite(s) connue(s) associée(s) à cette adresse.</div>
+  <div class="status-title">🚨 COMPROMIS (données fictives)</div>
+  <div><strong>{len(account.breaches)}</strong> fuite(s) simulée(s) associée(s) à cette adresse de démonstration.</div>
 </div>
 <div class="section">
   <h3>Détails des compromissions</h3>
   {details}
 </div>
-<div class="recommendation">
-<strong>Action recommandée :</strong> changez les mots de passe concernés,
-évitez leur réutilisation et activez l'authentification à deux facteurs lorsque disponible.
-</div>
+{demo_notice}
 <div class="privacy-note">
 🔒 Seules les métadonnées de compromission sont affichées. Les mots de passe,
 tokens et autres secrets volés ne sont jamais affichés.
@@ -645,12 +662,13 @@ tokens et autres secrets volés ne sont jamais affichés.
                 else:
                     result = f"""
 <div class="card result-card">
-<h2>Résultat de la vérification</h2>
+<h2>Résultat de la vérification — MODE DÉMO</h2>
 <p class="account">E-mail : <strong>{html.escape(masked)}</strong></p>
 <div class="status ok">
-  <div class="status-title">✓ Aucun compromis connu</div>
-  <div>Aucune fuite connue n'a été retournée pour cette adresse.</div>
+  <div class="status-title">✓ Aucun compromis connu (données fictives)</div>
+  <div>Aucune fuite simulée n'a été retournée pour cette adresse.</div>
 </div>
+{demo_notice}
 <div class="privacy-note">🔒 Aucun mot de passe ou secret n'est affiché ou enregistré.</div>
 </div>"""
 
@@ -676,7 +694,7 @@ tokens et autres secrets volés ne sont jamais affichés.
 
             strength = analyze_strength(password)
             breach = check_pwned(password)
-            save_web_result(mask_email(email), strength, breach)
+            save_web_result(f"{mask_email(email)} ({label})", strength, breach)
 
             if not breach.checked:
                 breach_text = f"Échec ({html.escape(str(breach.error))})"
