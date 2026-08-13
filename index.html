@@ -1173,6 +1173,11 @@
         <div class="label">Trop perçu espèce</div>
         <div class="value" id="tropPercuEspeceRecap">+1,10 €</div>
       </div>
+      <div class="stat-box">
+        <div class="label">TVA à reverser (estimée, mois en cours)</div>
+        <div class="value" id="tvaAPayerValue">—</div>
+        <div class="stat-sub" id="tvaAPayerDetail">—</div>
+      </div>
     </div>
     <div class="progress-wrap">
       <div class="progress-butterfly" id="progressButterfly" style="left: 65%;" onclick="toggleTropPercu()" title="Cliquer pour voir le trop perçu espèce">🦋</div>
@@ -6860,6 +6865,22 @@ function renderDashboard(){
   if(cumulCADetailEl){
     const source = jaliaCumulMois ? '' : ' (saisie manuelle — en attente de synchro Jalia)';
     cumulCADetailEl.textContent = `dont ${formatEuro(especesDuMois)} espèces, ${formatEuro(carteDuMois)} carte${source}`;
+  }
+
+  // TVA à reverser = TVA collectée sur le CA (encaissé, TTC) moins la TVA
+  // récupérable sur les achats du mois et les charges fixes du mois (mêmes
+  // taux/formule que calculerTvaAPayer, utilisée aussi par l'onglet Prévision).
+  const tvaCollecteeCA = Math.round(cumulCA * TVA_FACTEUR_VENTES_FIXES * 100) / 100;
+  const tvaRecupereeAchats = Math.round(achatsDuMois * TVA_RECUP_ACHATS_TAUX * 100) / 100;
+  const tvaRecupereeChargesFixes = Math.round(totalChargesFixesMois * TVA_FACTEUR_VENTES_FIXES * 100) / 100;
+  const tvaAPayer = Math.round(calculerTvaAPayer(cumulCA, achatsDuMois, totalChargesFixesMois) * 100) / 100;
+  const tvaAPayerEl = document.getElementById('tvaAPayerValue');
+  if(tvaAPayerEl){
+    tvaAPayerEl.textContent = (tvaAPayer < 0 ? '' : '') + formatEuro(tvaAPayer) + (tvaAPayer < 0 ? ' (crédit)' : '');
+  }
+  const tvaAPayerDetailEl = document.getElementById('tvaAPayerDetail');
+  if(tvaAPayerDetailEl){
+    tvaAPayerDetailEl.textContent = `dont ${formatEuro(tvaCollecteeCA)} collectée sur le CA, − ${formatEuro(tvaRecupereeAchats)} récupérée sur les achats, − ${formatEuro(tvaRecupereeChargesFixes)} sur les charges fixes`;
   }
 
   const resteEl = document.getElementById('resteAtteindre');
