@@ -5442,13 +5442,35 @@ function envoyerCommandePlouvier(){
     return;
   }
   const lignesTexte = produitsCommandes.map(p => `- ${p.nom} : ${p.quantite}`).join('\n');
-  const dateFr = formatDateFr(todayIso());
+  const dateIso = todayIso();
+  const dateFr = formatDateFr(dateIso);
   const sujet = `Commande Café Jean - ${dateFr}`;
   const corps = 'Bonjour,\n\nMerci de préparer la commande suivante :\n\n' +
     lignesTexte +
     '\n\nMerci,\nCafé Jean';
   const destinataire = (DATA.commandePlouvier.emailFournisseur || '').trim();
   const lien = `mailto:${destinataire}?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corps)}`;
+
+  // Enregistre la commande comme charge variable (achat fournisseur), pour qu'elle
+  // compte dans le suivi "Charges variables" du mois sans re-saisir une facture.
+  DATA.achats = DATA.achats || [];
+  produitsCommandes.forEach(p=>{
+    DATA.achats.push({
+      id: genererId(),
+      date: dateIso,
+      numeroFacture: 'Commande Plouvier',
+      produitId: null,
+      nom: p.nom,
+      qte: p.quantite||0,
+      prixAchatUnitaire: p.prixHT||0,
+      montant: Math.round((p.quantite||0) * (p.prixHT||0) * 100) / 100
+    });
+  });
+  sauvegarder();
+  renderAchatsTable();
+  renderDashboard();
+  afficherToast('Commande envoyée et enregistrée dans les charges variables.');
+
   window.location.href = lien;
 }
 
