@@ -1177,6 +1177,10 @@
         <div class="label">TVA à reverser (estimée, mois en cours)</div>
         <div class="value" id="tvaAPayerValue">—</div>
         <div class="stat-sub" id="tvaAPayerDetail">—</div>
+        <div class="stat-sub" style="margin-top:6px;">
+          <label for="pctCaSansAlcool">Part du CA sans alcool (10% de TVA, le reste à 20%) :</label>
+          <input type="number" id="pctCaSansAlcool" min="0" max="100" step="1" style="width:60px;" value="0" onchange="modifierPctCaSansAlcool(this.value)"> %
+        </div>
       </div>
     </div>
     <div class="progress-wrap">
@@ -3675,6 +3679,7 @@ function dataParDefaut(){
     promptSocialLibre: '',
     programmeEvenements: [],
     tauxChargesVariables: 27,
+    pctCaSansAlcool: 0,
     chargesFixes: [
       {label:'Loyer', montant:0},
       {label:'Électricité / eau', montant:0},
@@ -5195,6 +5200,12 @@ function modifierTauxChargesVariables(valeur){
   renderPrevisionSimulateur();
 }
 
+function modifierPctCaSansAlcool(valeur){
+  DATA.pctCaSansAlcool = Math.min(100, Math.max(0, parseFloat(valeur) || 0));
+  sauvegarder();
+  renderDashboard();
+}
+
 function synchroniserTauxDepuisPrevision(valeur){
   DATA.tauxChargesVariables = parseFloat(valeur) || 0;
   sauvegarder();
@@ -5227,6 +5238,18 @@ function renderPrevisionTab(){
 const TVA_TAUX_PREVISION = 0.20;
 const TVA_FACTEUR_VENTES_FIXES = TVA_TAUX_PREVISION / (1 + TVA_TAUX_PREVISION); // 20/120 ≈ 16,67 %
 const TVA_RECUP_ACHATS_TAUX = 0.8 * (0.20 / 1.20) + 0.2 * (0.10 / 1.10); // ≈ 15,15 % du TTC achats
+const TVA_TAUX_CA_SANS_ALCOOL = 0.10; // boissons sans alcool / restauration sur place
+
+// Le simulateur de Prévision garde le taux unique 20% (ci-dessus) faute de
+// détail par article côté Jalia (pas d'historique de vente par produit
+// disponible). La carte "TVA à reverser" du Dashboard permet en plus un
+// réglage manuel — DATA.pctCaSansAlcool (0 par défaut = comportement
+// identique à avant) — pour affiner la part du CA taxée à 10% plutôt que 20%.
+function facteurTvaCollecteeCA(pctCaSansAlcool){
+  const pct = Math.min(1, Math.max(0, (pctCaSansAlcool || 0) / 100));
+  const facteurSansAlcool = TVA_TAUX_CA_SANS_ALCOOL / (1 + TVA_TAUX_CA_SANS_ALCOOL); // 10/110
+  return pct * facteurSansAlcool + (1 - pct) * TVA_FACTEUR_VENTES_FIXES;
+}
 
 // TVA nette à reverser sur un mois = TVA collectée sur le CA moins TVA
 // récupérée sur les achats (taux mixte) et sur les charges fixes (20%).
@@ -6868,16 +6891,21 @@ function renderDashboard(){
   }
 
   // TVA à reverser = TVA collectée sur le CA (encaissé, TTC) moins la TVA
-  // récupérable sur les achats du mois et les charges fixes du mois (mêmes
-  // taux/formule que calculerTvaAPayer, utilisée aussi par l'onglet Prévision).
-  const tvaCollecteeCA = Math.round(cumulCA * TVA_FACTEUR_VENTES_FIXES * 100) / 100;
+  // récupérable sur les achats du mois et les charges fixes du mois. Le taux
+  // sur le CA tient compte du réglage "part du CA sans alcool" (10% de TVA,
+  // le reste à 20% — 0% par défaut, comme calculerTvaAPayer/Prévision, faute
+  // de détail de vente par article côté Jalia).
+  const pctCaSansAlcool = DATA.pctCaSansAlcool || 0;
+  const tvaCollecteeCA = Math.round(cumulCA * facteurTvaCollecteeCA(pctCaSansAlcool) * 100) / 100;
   const tvaRecupereeAchats = Math.round(achatsDuMois * TVA_RECUP_ACHATS_TAUX * 100) / 100;
   const tvaRecupereeChargesFixes = Math.round(totalChargesFixesMois * TVA_FACTEUR_VENTES_FIXES * 100) / 100;
-  const tvaAPayer = Math.round(calculerTvaAPayer(cumulCA, achatsDuMois, totalChargesFixesMois) * 100) / 100;
+  const tvaAPayer = Math.round((tvaCollecteeCA - tvaRecupereeAchats - tvaRecupereeChargesFixes) * 100) / 100;
   const tvaAPayerEl = document.getElementById('tvaAPayerValue');
   if(tvaAPayerEl){
     tvaAPayerEl.textContent = (tvaAPayer < 0 ? '' : '') + formatEuro(tvaAPayer) + (tvaAPayer < 0 ? ' (crédit)' : '');
   }
+  const pctCaSansAlcoolEl = document.getElementById('pctCaSansAlcool');
+  if(pctCaSansAlcoolEl && document.activeElement !== pctCaSansAlcoolEl) pctCaSansAlcoolEl.value = pctCaSansAlcool;
   const tvaAPayerDetailEl = document.getElementById('tvaAPayerDetail');
   if(tvaAPayerDetailEl){
     tvaAPayerDetailEl.textContent = `dont ${formatEuro(tvaCollecteeCA)} collectée sur le CA, − ${formatEuro(tvaRecupereeAchats)} récupérée sur les achats, − ${formatEuro(tvaRecupereeChargesFixes)} sur les charges fixes`;
