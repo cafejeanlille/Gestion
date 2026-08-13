@@ -5036,6 +5036,15 @@ function supprimerProduitPlouvier(id){
   renderPlouvierTab();
 }
 
+const MOTS_CLES_SOFT_PLOUVIER = [
+  'coca', 'fuzetea', 'fuze tea', 'orangina', 'limonade', 'perrier', 'vittel',
+  'schweppes', 'jupiler 0', 'tonic', 'sirop'
+];
+function estProduitSoft(nom){
+  const n = (nom||'').toLowerCase();
+  return MOTS_CLES_SOFT_PLOUVIER.some(mot => n.includes(mot));
+}
+
 function renderPlouvierTab(){
   DATA.commandePlouvier = DATA.commandePlouvier || { produits: [] };
   const emailEl = document.getElementById('plouvier-email');
@@ -5047,11 +5056,12 @@ function renderPlouvierTab(){
     wrap.innerHTML = `<p class="note">Aucun produit dans la liste pour l'instant — ajoutez-les ci-dessus.</p>`;
     return;
   }
-  const TVA_TAUX = 0.20;
   let totalHtGlobal = 0, totalTvaGlobal = 0, totalTtcGlobal = 0;
   const lignes = produits.map(p=>{
+    const soft = estProduitSoft(p.nom);
+    const tauxTva = soft ? 0.10 : 0.20;
     const totalHt = (p.quantite||0) * (p.prixHT||0);
-    const tva = totalHt * TVA_TAUX;
+    const tva = totalHt * tauxTva;
     const totalTtc = totalHt + tva;
     totalHtGlobal += totalHt;
     totalTvaGlobal += tva;
@@ -5062,13 +5072,13 @@ function renderPlouvierTab(){
           <td><input type="number" min="0" step="1" class="qty-input" value="${p.quantite}" onchange="modifierQuantitePlouvier('${p.id}', this.value)"></td>
           <td><input type="number" min="0" step="0.01" class="qty-input" value="${p.prixHT||0}" onchange="modifierPrixHTPlouvier('${p.id}', this.value)"></td>
           <td>${formatEuro(totalHt)}</td>
-          <td>${formatEuro(tva)}</td>
+          <td>${formatEuro(tva)} <span style="color:var(--ink-soft); font-size:11px;">(${soft ? '10%' : '20%'})</span></td>
           <td>${formatEuro(totalTtc)}</td>
           <td><button class="icon-btn" title="Retirer de la liste" onclick="supprimerProduitPlouvier('${p.id}')">🗑</button></td>
         </tr>`;
   }).join('');
   wrap.innerHTML = `<div style="overflow-x:auto;"><table style="min-width:640px;">
-    <thead><tr><th>Produit</th><th>Quantité</th><th>Prix HT (unité)</th><th>Total HT</th><th>TVA 20%</th><th>Total TTC</th><th></th></tr></thead>
+    <thead><tr><th>Produit</th><th>Quantité</th><th>Prix HT (unité)</th><th>Total HT</th><th>TVA (10% softs / 20% alcool)</th><th>Total TTC</th><th></th></tr></thead>
     <tbody>${lignes}</tbody>
     <tfoot>
       <tr style="font-weight:700; border-top:2px solid var(--line);">
